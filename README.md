@@ -1,49 +1,72 @@
 # FanSense
 
-macOS 菜单栏风扇控制与系统监控工具，支持 Apple Silicon Mac 实时查看温度、功耗、CPU/GPU/内存占用，并手动调节风扇转速。液态玻璃面板设计，功耗追踪 + 能效等级独有功能。
+macOS menu bar fan control & system monitor for Apple Silicon Macs. Real-time temperature, power draw, CPU/GPU/memory usage, manual fan speed control — wrapped in a Liquid Glass panel.
 
 ![Platform](https://img.shields.io/badge/platform-macOS-blue)
 ![Architecture](https://img.shields.io/badge/architecture-Apple%20Silicon-orange)
 ![Swift](https://img.shields.io/badge/swift-5.9+-red)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+> 中文文档: [README_CN.md](README_CN.md)
 
 ---
 
-## 功能特性
+## Why FanSense
 
-### 🔥 实时监控
-- **温度监测**：CPU / GPU / 电池三路温度实时显示，支持温度阈值告警
-- **功耗追踪**：整机功耗（PSTR）+ GPU 功耗（IOReport）+ 60 秒功耗曲线图
-- **电池管理**：电量百分比、剩余续航、充电状态、能效等级评估
-- **性能占用**：CPU / GPU / 内存占用率 + 状态评级（正常/较高/过载）
-- **网络速率**：实时下载/上传速率（KB/s 或 MB/s）
-- **磁盘使用**：根分区已用/可用空间
+Most system monitors show you *what's happening*. FanSense tells you *what it means*.
 
-### 🌀 风扇控制
-- **自动温控**：系统默认自动调速模式
-- **手动调速**：拖动滑块精确控制风扇转速（1200–4700 RPM）
-- **动态图标**：菜单栏图标旋转速度实时反映风扇转速
+- **Power efficiency rating** — none of the popular tools do this. FanSense calculates your Mac's energy grade based on real-time wattage and battery context.
+- **PSTR + IOReport dual-source power tracking** — whole-system power from SMC, GPU power from IOReport, overlaid on a 60-second live chart.
+- **Liquid Glass design** — built with macOS 26 glass panel APIs, not a hacked-together SwiftUI approximation.
 
-### 🎨 设计亮点
-- **毛玻璃面板**：NSPanel + HUD 材质，亮暗模式自适应
-- **双列布局**：560pt 宽度，左侧电池/能效/风扇，右侧温度/占用/网络/磁盘
-- **语义色系统**：CPU 紫色、内存蓝色、GPU 绿色、网络青色、磁盘靛蓝，阈值告警自动变橙/红
-- **无闪烁刷新**：等宽数字字体 + frame-based 布局，1 秒刷新无抖动
+| Feature | Stats | iStat Menus | Macs Fan Control | FanSense |
+|------|:--:|:--:|:--:|:--:|
+| SMC fan control | ✅ | ✅ | ✅ | ✅ |
+| Power efficiency rating | ❌ | ❌ | ❌ | ✅ |
+| PSTR whole-system power | ❌ | ❌ | ❌ | ✅ |
+| IOReport GPU power | ❌ | ❌ | ❌ | ✅ |
+| Battery energy grade | ❌ | ❌ | ❌ | ✅ |
+| Liquid Glass panel | ❌ | ❌ | ❌ | ✅ |
+| Open source | ✅ | ❌ | ❌ | ✅ |
 
 ---
 
-## 系统要求
+## Features
 
-- **操作系统**：macOS 15+ (Sequoia 及以上)，液态玻璃面板需 macOS 26+
-- **处理器**：Apple Silicon (M1 / M1 Pro / M1 Max / M2 / M3 系列)
-- **权限**：需要 root 权限设置风扇转速（通过 `fanhelper` 辅助进程实现）
+### Real-time Monitoring
+- **Temperature**: CPU / GPU / Battery, with color-coded threshold alerts
+- **Power Tracking**: Whole-system power (PSTR) + GPU power (IOReport) + 60-second live chart
+- **Battery**: Percentage, remaining time, charge state, energy efficiency grade
+- **Performance**: CPU / GPU / Memory usage with health rating (Normal / High / Critical)
+- **Network**: Real-time download/upload speed
+- **Disk**: Used / free space on root partition
 
-> **注意**：Intel Mac 不支持（SMC 键名和 IOReport 通道与 Apple Silicon 不同）。
+### Fan Control
+- **Auto mode**: System default thermal management
+- **Manual mode**: Precise speed control via slider (1200–4700 RPM)
+- **Dynamic icon**: Menu bar icon rotation speed mirrors actual fan RPM
+
+### Design
+- **Liquid Glass panel**: Native `NSPanel` with HUD material, adaptive light/dark mode
+- **Dual-column layout**: 560pt width — battery/efficiency/fan on left, temps/usage/network/disk on right
+- **Semantic color system**: CPU purple, Memory blue, GPU green, Network cyan, Disk indigo — auto shifts to orange/red on threshold breach
+- **Flicker-free**: Monospaced digits + frame-based layout, no jitter at 1s refresh
 
 ---
 
-## 安装使用
+## Requirements
 
-### 从源码编译
+- **OS**: macOS 15+ (Sequoia or later); Liquid Glass features require macOS 26+
+- **Processor**: Apple Silicon (M1 / M1 Pro / M1 Max / M2 / M3 / M4 series)
+- **Permissions**: Root access required for fan speed control (via `fanhelper` helper binary)
+
+> Intel Macs are not supported — SMC key names and IOReport channels differ from Apple Silicon.
+
+---
+
+## Installation
+
+Build from source:
 
 ```bash
 git clone https://github.com/ASTL2022/FanSense.git
@@ -52,184 +75,164 @@ chmod +x build.sh
 ./build.sh
 ```
 
-构建脚本会：
-- 编译 Swift 主程序 (`main.swift` + 视图组件)
-- 编译 C 辅助工具 `fanhelper`（SMC 读写）
-- 生成 app bundle (`FanControl.app`)
-- 打包为 DMG 镜像
+The build script compiles the Swift app and C helper, then packages everything into `FanControl.app`.
 
 ---
 
-## 使用说明
+## Quick Start
 
-### 基础操作
+1. Click the fan icon in the menu bar to open the panel
+2. Drag the fan slider to your desired RPM — takes effect immediately
+3. Click "Restore Auto" to return to system thermal management
+4. Click "Quit" to exit
 
-1. **查看监控数据**：点击菜单栏风扇图标打开面板
-2. **手动调速**：拖动风扇卡片的滑块到目标转速，松手后立即生效
-3. **恢复自动温控**：点击面板底部「恢复自动温控」按钮
-4. **退出应用**：点击面板底部「退出」按钮
-
-### 界面布局
+### Panel Layout
 
 ```
 ┌─────────────────────────────────┐
-│      MacBook Pro M1 Pro         │  ← Header（机型 + 运行时间）
-│       运行 3 天 4 小时           │
+│      MacBook Pro M1 Pro         │
+│      Uptime 3d 4h               │
 ├──────────────┬──────────────────┤
-│ 【电池】      │ 【温度】          │
-│  86% 放电中   │  CPU 72° 正常    │
-│  剩余 3h20m  │  GPU 58° 正常    │
-│  曲线图       │  电池 32° 正常   │
+│ Battery      │ Temperature      │
+│  86% on bat  │  CPU 72°  OK     │
+│  3h20m left  │  GPU 58°  OK     │
+│  chart       │  Bat 32°  OK     │
 ├──────────────┼──────────────────┤
-│ 【能效】      │ 【占用】          │
-│  18.3W 高效   │  CPU 74% 正常    │
-│              │  GPU 13% 正常    │
-│              │  内存 61% 正常   │
+│ Efficiency   │ Usage            │
+│  18.3W  HIGH │  CPU 74%  OK     │
+│              │  GPU 13%  OK     │
+│              │  Mem 61%  OK     │
 ├──────────────┼──────────────────┤
-│ 【风扇】      │ 【网络】          │
+│ Fan          │ Network          │
 │  1850 RPM    │  ↓ 120 KB/s      │
-│  [滑块]      │  ↑ 45 KB/s       │
+│  [slider]    │  ↑ 45 KB/s       │
 │              ├──────────────────┤
-│              │ 【磁盘】          │
-│              │  已用 512 GB     │
-│              │  可用 245 GB     │
+│              │ Disk             │
+│              │  Used 512 GB     │
+│              │  Free 245 GB     │
 └──────────────┴──────────────────┘
-│ [恢复自动温控]  [退出]          │
+│ [Restore Auto]    [Quit]        │
 └─────────────────────────────────┘
 ```
 
-### 告警阈值
+### Alert Thresholds
 
-| 指标 | 正常 | 警告 | 危险 |
+| Metric | OK | Warning | Critical |
 |------|------|------|------|
-| CPU 温度 | < 60°C | 60–94°C | ≥ 95°C |
-| GPU 温度 | < 60°C | 60–94°C | ≥ 95°C |
-| 电池温度 | < 35°C | 35–44°C | ≥ 45°C |
-| CPU 占用 | < 70% | 70–89% | ≥ 90% |
-| GPU 占用 | < 70% | 70–89% | ≥ 90% |
-| 内存占用 | < 60% | 60–89% | ≥ 90% |
-| 磁盘占用 | < 80% | 80–89% | ≥ 90% |
+| CPU Temp | < 60°C | 60–94°C | ≥ 95°C |
+| GPU Temp | < 60°C | 60–94°C | ≥ 95°C |
+| Battery Temp | < 35°C | 35–44°C | ≥ 45°C |
+| CPU Usage | < 70% | 70–89% | ≥ 90% |
+| GPU Usage | < 70% | 70–89% | ≥ 90% |
+| Memory Usage | < 60% | 60–89% | ≥ 90% |
+| Disk Usage | < 80% | 80–89% | ≥ 90% |
 
 ---
 
-## 技术架构
+## Architecture
 
-### 核心组件
+### Core Components
 
-#### 1. Swift 主程序 (`main.swift`)
-- **AppController**：应用生命周期管理、定时刷新、面板控制
-- **视图组件**：
-  - `HeaderView` - 机型与运行时间
-  - `BatteryBarView` - 电池状态 + 充电曲线图
-  - `ChargeChartView` - 60 秒功耗历史
-  - `EfficiencyView` - 能效等级评估
-  - `FanSliderView` - 风扇转速滑块
-  - `TempBarView` - 三路温度监控
-  - `MetricBarView` - CPU/GPU/内存/磁盘通用条形图
-  - `NetBarView` - 网络速率
+**Swift App** (`main.swift` + view components)
+- `AppController` — lifecycle, timers, panel management
+- Views: `HeaderView`, `BatteryBarView`, `ChargeChartView`, `EfficiencyView`, `FanSliderView`, `TempBarView`, `MetricBarView`, `NetBarView`
 
-#### 2. C 辅助工具 (`fanhelper.c`)
-- **SMC 读写**：通过 `IOKit` 框架的 `IOServiceOpen` 访问 SMC
-- **支持命令**：
-  - `fan` - 读取当前转速
-  - `fan <rpm>` - 设置目标转速
-  - `temp <key>` - 读取温度（TC0P / Tg0D / TB0T 等）
-  - `power` - 读取整机功耗（PSTR）
+**C Helper** (`fanhelper.c`)
+- SMC read/write via `IOKit` (`IOServiceOpen`)
+- Commands: `fan`, `fan <rpm>`, `temp <key>`, `power`
 
-#### 3. 数据源层 (`DataSources.swift`)
-封装所有系统 API 调用：
-- **功耗**：SMC `PSTR` + IOReport `GPU Energy`
-- **温度**：SMC `TC0x` / `Tg0D` / `TB0T`
-- **CPU 占用**：`host_processor_info` + delta 计算
-- **内存**：`host_statistics64` + `sysctl hw.memsize`
-- **GPU 占用**：IORegistry `AGXAcceleratorG13X` → `Device Utilization %`
-- **网络**：`getifaddrs` + 字节差值 ÷ 时间
-- **磁盘**：`statvfs("/")`
-- **电池**：`IOPowerSources` + IORegistry `AppleSmartBattery`
+**Data Layer** (`DataSources.swift`)
+- **Power**: SMC `PSTR` + IOReport GPU Energy
+- **Temperature**: SMC `TC0x` / `Tg0D` / `TB0T`
+- **CPU**: `host_processor_info` with delta calculation
+- **Memory**: `host_statistics64` + `sysctl hw.memsize`
+- **GPU**: IORegistry `AGXAccelerator` → Device Utilization %
+- **Network**: `getifaddrs` with byte delta ÷ time interval
+- **Disk**: `statvfs("/")`
+- **Battery**: `IOPowerSources` + IORegistry `AppleSmartBattery`
 
-### 数据刷新策略
+### Refresh Strategy
 
-- **快速刷新**（1 秒）：温度、功耗、CPU/GPU/内存占用、网络、风扇转速
-- **慢速刷新**（30 秒）：电池状态、续航时间、磁盘使用量
+- **Fast** (1s): temperature, power, CPU/GPU/memory, network, fan RPM
+- **Slow** (30s): battery state, remaining time, disk usage
 
-### 权限模型
+### Permission Model
 
-- **无需 root**：读取温度、功耗、占用率、网络、磁盘
-- **需要 root**：写 SMC（设置风扇转速）
-  - 通过 `fanhelper` 以 root 身份运行，主程序通过管道通信调用
+- **No root needed**: reading temperature, power, usage stats, network, disk
+- **Root required**: writing SMC (fan speed control) — delegated to `fanhelper` via pipe IPC
 
 ---
 
-## 文档
+## Documentation
 
-- **[DATA_SOURCES.md](DATA_SOURCES.md)** - 所有监控数据的 API 来源、字段定义、已知限制
-- **[DESIGN.md](DESIGN.md)** - UI 设计规范、token 系统、组件库、布局规则
-- **[PITFALLS.md](PITFALLS.md)** - 开发踩坑记录（SMC 数据源、NSPanel 刷新、IOReport 等）
-
----
-
-## 常见问题
-
-### Q1: 为什么需要输入密码？
-设置风扇转速需要写 SMC，macOS 要求 root 权限。`fanhelper` 会被安装到系统目录（`/Library/PrivilegedHelperTools`），仅在首次运行时要求授权。
-
-### Q2: 手动设置风扇后会自动恢复吗？
-不会。手动设置的转速会持续生效，直到点击「恢复自动温控」或重启系统。
-
-### Q3: Intel Mac 能用吗？
-不支持。Intel Mac 的 SMC 键名（如 `PCPU` / `PGPU`）和 IOReport 通道与 Apple Silicon 不同，需要单独适配。
-
-### Q4: macOS 26 beta 续航时间显示不准？
-macOS 26 beta 存在 bug，`kIOPSTimeToEmptyKey` 固定返回 -1。当前版本已切换到 IORegistry `AppleSmartBattery` → `TimeRemaining` 读取，可正常工作。
-
-### Q5: 为什么 CPU 功耗显示为 0 或近似值？
-Apple Silicon 的 IOReport `CPU Energy` 通道在当前 macOS 版本不更新。当前使用 `CPU ≈ PSTR整机 − GPU` 做近似估算。
-
-### Q6: 能否监控外接显示器功耗？
-不支持。M1 Pro 上所有实时屏幕功耗 API（IOReport backlight / IORegistry AppleCLCD2）均返回静态快照，无法获取实时瓦数。
+- **[DATA_SOURCES.md](DATA_SOURCES.md)** — API origins, field definitions, known limitations for every metric
+- **[DESIGN.md](DESIGN.md)** — UI design tokens, component library, layout rules
+- **[PITFALLS.md](PITFALLS.md)** — development gotchas: SMC quirks, NSPanel refresh, IOReport channels
 
 ---
 
-## 开发路线
+## FAQ
 
-### 已完成 ✅
-- [x] 菜单栏图标 + NSPanel 实时面板
-- [x] 温度/功耗/电池/风扇/CPU/GPU/内存/网络/磁盘监控
-- [x] 手动风扇转速控制
-- [x] 60 秒功耗历史曲线
-- [x] 能效等级评估
-- [x] 语义色系统 + 阈值告警
-- [x] 动态旋转图标（转速映射）
-- [x] DMG 打包与一键构建
+**Why does it need my password?**  
+Fan speed control requires SMC write access, which macOS restricts to root. The `fanhelper` binary runs as root; the main app communicates with it via pipe.
 
-### 规划中 🚧
-- [ ] 风扇转速曲线自定义（温度 → 转速映射）
-- [ ] 历史数据导出（CSV / JSON）
-- [ ] 多风扇支持（MacBook Pro 16" 双风扇）
-- [ ] 通知中心集成（温度告警推送）
-- [ ] 命令行模式（headless 运行 + 日志输出）
+**Does manual fan speed persist?**  
+Yes. It stays at the set RPM until you click "Restore Auto" or reboot.
 
----
+**Intel Mac support?**  
+No. SMC key names (`PCPU` / `PGPU`) and IOReport channels differ from Apple Silicon.
 
-## 致谢
+**macOS 26 beta battery time wrong?**  
+macOS 26 beta has a known bug where `kIOPSTimeToEmptyKey` returns -1. FanSense reads `AppleSmartBattery` → `TimeRemaining` from IORegistry instead.
 
-本项目在开发过程中参考了以下开源项目和技术文档：
+**Why is CPU power estimated?**  
+Apple Silicon's IOReport `CPU Energy` channel doesn't update on current macOS. FanSense approximates: `CPU ≈ PSTR(total) − GPU`.
 
-- [SMCKit](https://github.com/beltex/SMCKit) - SMC 读写封装
-- [iStat Menus](https://bjango.com/mac/istatmenus/) - 系统监控 UI 设计灵感
-- Apple IOKit / IOReport 框架文档
-- [powermetrics](https://gist.github.com/samlown/5404439) - 功耗监控方案探索
+**External display power?**  
+Not supported. All real-time display power APIs on M1 Pro return static snapshots, not live wattage values.
 
 ---
 
-## 许可协议
+## Roadmap
 
-MIT License
+### Done
+- [x] Menu bar icon + NSPanel real-time panel
+- [x] Temperature / power / battery / fan / CPU / GPU / memory / network / disk
+- [x] Manual fan speed control
+- [x] 60-second power history chart
+- [x] Energy efficiency rating
+- [x] Semantic color system + threshold alerts
+- [x] Dynamic rotating icon (RPM-mapped)
+- [x] Liquid Glass panel design
+
+### Planned
+- [ ] Custom fan curve (temperature → RPM mapping)
+- [ ] History export (CSV / JSON)
+- [ ] Multi-fan support (MacBook Pro 16" dual fan)
+- [ ] Notification Center integration
+- [ ] Headless CLI mode
 
 ---
 
-## 作者
+## Credits
+
+Built with reference to:
+
+- [SMCKit](https://github.com/beltex/SMCKit) — SMC read/write primitives
+- [iStat Menus](https://bjango.com/mac/istatmenus/) — UI design inspiration
+- Apple IOKit / IOReport framework documentation
+- [powermetrics](https://gist.github.com/samlown/5404439) — power monitoring exploration
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE).
+
+---
+
+## Author
 
 dr.t @ MarsCandyBox
 
-如有问题或建议，欢迎提交 Issue 或 Pull Request。
+Issues and pull requests welcome.
