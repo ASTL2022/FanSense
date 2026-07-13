@@ -1,6 +1,6 @@
-# FanControl
+# FanSense
 
-macOS 菜单栏风扇控制与系统监控工具，支持 Apple Silicon Mac 实时查看温度、功耗、CPU/GPU/内存占用，并手动调节风扇转速。
+macOS 菜单栏风扇控制与系统监控工具，支持 Apple Silicon Mac 实时查看温度、功耗、CPU/GPU/内存占用，并手动调节风扇转速。液态玻璃面板设计，功耗追踪 + 能效等级独有功能。
 
 ![Platform](https://img.shields.io/badge/platform-macOS-blue)
 ![Architecture](https://img.shields.io/badge/architecture-Apple%20Silicon-orange)
@@ -33,7 +33,7 @@ macOS 菜单栏风扇控制与系统监控工具，支持 Apple Silicon Mac 实�
 
 ## 系统要求
 
-- **操作系统**：macOS 12+ (Monterey 及以上)
+- **操作系统**：macOS 15+ (Sequoia 及以上)，液态玻璃面板需 macOS 26+
 - **处理器**：Apple Silicon (M1 / M1 Pro / M1 Max / M2 / M3 系列)
 - **权限**：需要 root 权限设置风扇转速（通过 `fanhelper` 辅助进程实现）
 
@@ -43,17 +43,11 @@ macOS 菜单栏风扇控制与系统监控工具，支持 Apple Silicon Mac 实�
 
 ## 安装使用
 
-### 方式一：下载编译好的 DMG（推荐）
-
-1. 下载 `FanControl.dmg`
-2. 双击挂载，拖动 `FanControl.app` 到应用程序文件夹
-3. 首次运行时，系统会提示输入密码授权 `fanhelper` 辅助工具
-4. 菜单栏出现风扇图标，点击打开监控面板
-
-### 方式二：从源码编译
+### 从源码编译
 
 ```bash
-cd /path/to/fanapp
+git clone https://github.com/ASTL2022/FanSense.git
+cd FanSense
 chmod +x build.sh
 ./build.sh
 ```
@@ -63,12 +57,6 @@ chmod +x build.sh
 - 编译 C 辅助工具 `fanhelper`（SMC 读写）
 - 生成 app bundle (`FanControl.app`)
 - 打包为 DMG 镜像
-
-编译产物：
-- `FanControl` - 主可执行文件
-- `fanhelper` - SMC 辅助工具
-- `FanControl.app` - 应用程序包
-- `FanControl.dmg` - 安装镜像
 
 ---
 
