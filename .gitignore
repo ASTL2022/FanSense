@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+
+# Xcode
+*.xcworkspace
+xcuserdata/
+DerivedData/
+*.xcuserdata
+
+# Build artifacts
+*.app
+*.dmg
+*.pkg
+fanhelper
+FanControl
+
+# Compiled test binaries
+smc_dump
+smc_scan
+test_read
+test_write
+probe_ioreport
+
+# Temp files
+*.swp
+*.swo
+*~
+.~lock.*
