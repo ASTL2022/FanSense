@@ -4,14 +4,16 @@ cd "$(dirname "$0")"
 
 APP="FanControl.app"
 APPBIN="$APP/Contents/MacOS"
-TOOLCHAIN="/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin"
-SDK="/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+XCODE_DIR=$(xcode-select -p)
+TOOLCHAIN="$XCODE_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
+SDK="$XCODE_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+[ -d "$TOOLCHAIN" ] || { echo "Xcode not found at $XCODE_DIR. Install Xcode or run: sudo xcode-select -s /Applications/Xcode.app"; exit 1; }
 
 echo "==> 编译 SMC helper (C)..."
 "$TOOLCHAIN/clang" -isysroot "$SDK" -O2 -framework IOKit -framework CoreFoundation smc.c fanhelper.c -o fanhelper
 
 echo "==> 编译 FanControl (Swift) ..."
-"$TOOLCHAIN/swiftc" -sdk "$SDK" -O -target arm64-apple-macosx27.0 -module-cache-path /tmp/swift-modcache-v2 -num-threads 4 \
+"$TOOLCHAIN/swiftc" -sdk "$SDK" -O -target arm64-apple-macosx15.0 -module-cache-path /tmp/swift-modcache-v2 -num-threads 4 \
     DataSources.swift \
     TransparentPanel.swift RoundedPanelView.swift HeaderView.swift \
     SystemBarView.swift NetBarView.swift MetricBarView.swift \
@@ -40,7 +42,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>FanControl</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleSignature</key><string>????</string>
-  <key>LSMinimumSystemVersion</key><string>27.0</string>
+  <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
   <key>CFBundleIconFile</key><string>AppIcon</string>

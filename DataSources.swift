@@ -218,21 +218,28 @@ func readNetwork(interface: String = "", prevBytes: inout (rx: UInt64, tx: UInt6
 }
 
 func readGPUUtilization() -> Double {
-    var iter: io_iterator_t = 0
-    guard IOServiceGetMatchingServices(kIOMainPortDefault,
-            IOServiceMatching("AGXAcceleratorG13X"), &iter) == KERN_SUCCESS,
-        iter != 0 else { return -1 }
-    let svc = IOIteratorNext(iter)
-    IOObjectRelease(iter)
-    guard svc != 0 else { return -1 }
-    defer { IOObjectRelease(svc) }
-    var props: Unmanaged<CFMutableDictionary>?
-    guard IORegistryEntryCreateCFProperties(svc, &props, kCFAllocatorDefault, 0) == KERN_SUCCESS,
-          let dict = props?.takeRetainedValue() as? [String: Any],
-          let ps = dict["PerformanceStatistics"] as? [String: Any],
-          let dev = ps["Device Utilization %"] as? Int
-    else { return -1 }
-    return Double(dev) / 100.0
+    let gpuModels = [
+        "AGXAcceleratorG16X", "AGXAcceleratorG15X", "AGXAcceleratorG14X",
+        "AGXAcceleratorG13X", "AGXAccelerator"
+    ]
+    for model in gpuModels {
+        var iter: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault,
+                IOServiceMatching(model), &iter) == KERN_SUCCESS,
+            iter != 0 else { continue }
+        let svc = IOIteratorNext(iter)
+        IOObjectRelease(iter)
+        guard svc != 0 else { continue }
+        defer { IOObjectRelease(svc) }
+        var props: Unmanaged<CFMutableDictionary>?
+        guard IORegistryEntryCreateCFProperties(svc, &props, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+              let dict = props?.takeRetainedValue() as? [String: Any],
+              let ps = dict["PerformanceStatistics"] as? [String: Any],
+              let dev = ps["Device Utilization %"] as? Int
+        else { continue }
+        return Double(dev) / 100.0
+    }
+    return -1
 }
 
 struct DiskInfo {
