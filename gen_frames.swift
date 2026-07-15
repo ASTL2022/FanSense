@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 dr.t @ MarsCandyBox
+
 // Build-time tool: generates 30 pre-rotated fan icon PNGs → Resources/fan_frame_NN.png
 // Run once; build.sh skips if frames already exist.
 import AppKit

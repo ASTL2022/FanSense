@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 dr.t @ MarsCandyBox
+
 // NVMe SMART reader for Apple internal SSDs.
 // Uses the IONVMeFamily user-client plug-in (same interface DriveDx/smartctl use).
 // Works without root; internal NVMe only (external/USB drives don't expose it).

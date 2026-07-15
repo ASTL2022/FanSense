@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 dr.t @ MarsCandyBox
+
 import Cocoa
 
 // MARK: - Net Bar View  (网络，两列，标题+数值，无进度条无状态)

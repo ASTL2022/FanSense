@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 dr.t @ MarsCandyBox
+
 import Cocoa
 
 // MARK: - System Bar View  (已废弃，代码保留备用)

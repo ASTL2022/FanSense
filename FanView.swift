@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 dr.t @ MarsCandyBox
+
 import Cocoa
 
 // MARK: - Fan View (RPM readout + slider + 60s history chart)

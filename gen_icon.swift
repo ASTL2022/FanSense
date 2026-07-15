@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 dr.t @ MarsCandyBox
+
 // gen_icon.swift — macOS 26 Liquid Glass single-layer fan icon
 // Design: translucent frosted glass blades on transparent ground,
 // soft depth through subtle shadows and specular highlights.

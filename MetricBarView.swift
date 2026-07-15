@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 dr.t @ MarsCandyBox
+
 import Cocoa
 
 // MARK: - Metric Bar View  (处理器·内存，竖排，标题+数值+状态+进度条)

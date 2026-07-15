@@ -166,7 +166,9 @@ SMART 仅支持内置 NVMe 盘，且需要安装最新版 `fanhelper`。
 
 ## 许可协议
 
-GPL-3.0
+Copyright (C) 2026 dr.t @ MarsCandyBox
+
+GPL-3.0-or-later，见 [LICENSE](LICENSE)。分发本软件或其衍生品（包括售卖）必须向每位接收者提供完整源码和本协议。未经许可，不得使用 "FanSense" 名称为衍生产品背书或宣传。
 
 ---
 

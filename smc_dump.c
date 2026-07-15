@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 dr.t @ MarsCandyBox
+
 // smc_dump.c — 枚举全部 SMC key 并解码值，用于定位"放电整机功耗" key。
 // 独立实现，不依赖 smc.c（避免影响正在使用的 helper）。
 //

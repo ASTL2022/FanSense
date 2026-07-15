@@ -169,7 +169,9 @@ SMART is only available for the internal NVMe drive, and requires the current `f
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE).
+Copyright (C) 2026 dr.t @ MarsCandyBox
+
+GPL-3.0-or-later — see [LICENSE](LICENSE). If you distribute this software or a derivative (including selling it), you must provide the complete corresponding source code and this license to every recipient. The name "FanSense" may not be used to endorse or promote derivative products without permission.
 
 ---
 

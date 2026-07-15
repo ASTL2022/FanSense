@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 dr.t @ MarsCandyBox
+
 #include "smc.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 dr.t @ MarsCandyBox
+
 #include "smc.h"
 #include <IOKit/IOKitLib.h>
 #include <string.h>
