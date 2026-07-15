@@ -169,7 +169,7 @@ SMART is only available for the internal NVMe drive, and requires the current `f
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE). Versions up to v1.0.0 were released under MIT.
+GPL-3.0 — see [LICENSE](LICENSE).
 
 ---
 
