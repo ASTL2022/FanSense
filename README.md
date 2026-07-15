@@ -1,6 +1,6 @@
 # FanSense
 
-macOS menu bar fan control & system monitor for Apple Silicon Macs. Real-time temperature, power draw, CPU/GPU/memory usage, manual fan speed control — wrapped in a Liquid Glass panel.
+A menu bar fan control and system monitor for Apple Silicon Macs. Shows temperature, power draw, CPU/GPU/memory usage, and lets you set fan speed manually.
 
 ![Platform](https://img.shields.io/badge/platform-macOS-blue)
 ![Architecture](https://img.shields.io/badge/architecture-Apple%20Silicon-orange)
@@ -11,56 +11,36 @@ macOS menu bar fan control & system monitor for Apple Silicon Macs. Real-time te
 
 ---
 
-## Why FanSense
-
-Most system monitors show you *what's happening*. FanSense tells you *what it means*.
-
-- **Power efficiency rating** — none of the popular tools do this. FanSense calculates your Mac's energy grade based on real-time wattage and battery context.
-- **PSTR + IOReport dual-source power tracking** — whole-system power from SMC, GPU power from IOReport, overlaid on a 60-second live chart.
-- **Liquid Glass design** — built with macOS 26 glass panel APIs, not a hacked-together SwiftUI approximation.
-
-| Feature | Stats | iStat Menus | Macs Fan Control | FanSense |
-|------|:--:|:--:|:--:|:--:|
-| SMC fan control | ✅ | ✅ | ✅ | ✅ |
-| Power efficiency rating | ❌ | ❌ | ❌ | ✅ |
-| PSTR whole-system power | ❌ | ❌ | ❌ | ✅ |
-| IOReport GPU power | ❌ | ❌ | ❌ | ✅ |
-| Battery energy grade | ❌ | ❌ | ❌ | ✅ |
-| Liquid Glass panel | ❌ | ❌ | ❌ | ✅ |
-| Open source | ✅ | ❌ | ❌ | ✅ |
-
----
-
 ## Features
 
-### Real-time Monitoring
+### Monitoring
 - **Temperature**: CPU / GPU / Battery, with color-coded threshold alerts
-- **Power Tracking**: Whole-system power (PSTR) + GPU power (IOReport) + 60-second live chart
-- **Battery**: Percentage, remaining time, charge state, energy efficiency grade
-- **Performance**: CPU / GPU / Memory usage with health rating (Normal / High / Critical)
-- **Network**: Real-time download/upload speed
-- **Disk**: Used / free space on root partition
+- **Power**: whole-system power (SMC PSTR) + GPU power (IOReport), 60-second live chart
+- **Battery**: percentage, remaining time, charge state, energy efficiency grade
+- **Usage**: CPU / GPU / memory with status rating
+- **Network**: real-time download/upload speed
+- **Disk**: usage of the root partition + SSD health from NVMe SMART (wear level)
 
 ### Fan Control
-- **Auto mode**: System default thermal management
-- **Manual mode**: Precise speed control via slider (1200–4700 RPM)
-- **Dynamic icon**: Menu bar icon rotation speed mirrors actual fan RPM
+- **Auto mode**: system default thermal management
+- **Manual mode**: set RPM with a slider; drag to minimum to hand control back to the system
+- **History chart**: 60-second RPM curve, colored by mode (blue = auto, orange = manual)
+- **Menu bar icon**: rotates while the fan is actually spinning; switches to a flame when CPU/GPU ≥ 80°C
 
-### Design
-- **Liquid Glass panel**: Native `NSPanel` with HUD material, adaptive light/dark mode
-- **Dual-column layout**: 560pt width — battery/efficiency/fan on left, temps/usage/network/disk on right
-- **Semantic color system**: CPU purple, Memory blue, GPU green, Network cyan, Disk indigo — auto shifts to orange/red on threshold breach
-- **Flicker-free**: Monospaced digits + frame-based layout, no jitter at 1s refresh
+### UI
+- Native `NSPanel` with glass material, adapts to light/dark mode
+- Two-column layout, monospaced digits, flicker-free 1s refresh
+- Right-click the menu bar icon to quit
 
 ---
 
 ## Requirements
 
-- **OS**: macOS 15+ (Sequoia or later); Liquid Glass features require macOS 26+
-- **Processor**: Apple Silicon (M1 / M1 Pro / M1 Max / M2 / M3 / M4 series)
-- **Permissions**: Root access required for fan speed control (via `fanhelper` helper binary)
+- **OS**: macOS 15+ (glass panel effects require macOS 26+)
+- **Processor**: Apple Silicon
+- **Permissions**: root is required once to install the `fanhelper` binary (fan speed writes go through SMC)
 
-> Intel Macs are not supported — SMC key names and IOReport channels differ from Apple Silicon.
+> Intel Macs are not supported — SMC key names and IOReport channels differ.
 
 ---
 
@@ -77,43 +57,22 @@ chmod +x build.sh
 
 The build script compiles the Swift app and C helper, then packages everything into `FanControl.app`.
 
+Install the helper (first time only):
+
+```bash
+sudo cp fanhelper /usr/local/bin/fanhelper
+sudo chown root:wheel /usr/local/bin/fanhelper
+sudo chmod u+s /usr/local/bin/fanhelper
+```
+
 ---
 
-## Quick Start
+## Usage
 
 1. Click the fan icon in the menu bar to open the panel
-2. Drag the fan slider to your desired RPM — takes effect immediately
-3. Click "Restore Auto" to return to system thermal management
-4. Click "Quit" to exit
-
-### Panel Layout
-
-```
-┌─────────────────────────────────┐
-│      MacBook Pro M1 Pro         │
-│      Uptime 3d 4h               │
-├──────────────┬──────────────────┤
-│ Battery      │ Temperature      │
-│  86% on bat  │  CPU 72°  OK     │
-│  3h20m left  │  GPU 58°  OK     │
-│  chart       │  Bat 32°  OK     │
-├──────────────┼──────────────────┤
-│ Efficiency   │ Usage            │
-│  18.3W  HIGH │  CPU 74%  OK     │
-│              │  GPU 13%  OK     │
-│              │  Mem 61%  OK     │
-├──────────────┼──────────────────┤
-│ Fan          │ Network          │
-│  1850 RPM    │  ↓ 120 KB/s      │
-│  [slider]    │  ↑ 45 KB/s       │
-│              ├──────────────────┤
-│              │ Disk             │
-│              │  Used 512 GB     │
-│              │  Free 245 GB     │
-└──────────────┴──────────────────┘
-│ [Restore Auto]    [Quit]        │
-└─────────────────────────────────┘
-```
+2. Drag the fan slider to the desired RPM — takes effect after a short debounce
+3. Drag the slider to the far left to restore automatic thermal management
+4. Right-click the menu bar icon → Quit (fan control is returned to the system on exit)
 
 ### Alert Thresholds
 
@@ -126,20 +85,20 @@ The build script compiles the Swift app and C helper, then packages everything i
 | GPU Usage | < 70% | 70–89% | ≥ 90% |
 | Memory Usage | < 60% | 60–89% | ≥ 90% |
 | Disk Usage | < 80% | 80–89% | ≥ 90% |
+| SSD Health | ≥ 90% | 70–89% | < 70% |
 
 ---
 
 ## Architecture
 
-### Core Components
-
 **Swift App** (`main.swift` + view components)
 - `AppController` — lifecycle, timers, panel management
-- Views: `HeaderView`, `BatteryBarView`, `ChargeChartView`, `EfficiencyView`, `FanSliderView`, `TempBarView`, `MetricBarView`, `NetBarView`
+- Views: `BatteryBarView`, `ChargeChartView`, `EfficiencyView`, `FanView`, `TempBarView`, `MetricBarView`, `NetBarView`
 
-**C Helper** (`fanhelper.c`)
-- SMC read/write via `IOKit` (`IOServiceOpen`)
-- Commands: `fan`, `fan <rpm>`, `temp <key>`, `power`
+**C Helper** (`fanhelper.c`, `smc.c`, `nvme_smart.c`)
+- SMC read/write via IOKit
+- NVMe SMART via `IONVMeSMARTUserClient` plug-in (internal SSD only, no root needed)
+- Commands: `read` / `sensors` / `all` / `smart` / `set <rpm>` / `auto`
 
 **Data Layer** (`DataSources.swift`)
 - **Power**: SMC `PSTR` + IOReport GPU Energy
@@ -148,18 +107,19 @@ The build script compiles the Swift app and C helper, then packages everything i
 - **Memory**: `host_statistics64` + `sysctl hw.memsize`
 - **GPU**: IORegistry `AGXAccelerator` → Device Utilization %
 - **Network**: `getifaddrs` with byte delta ÷ time interval
-- **Disk**: `statvfs("/")`
+- **Disk**: `volumeAvailableCapacityForImportantUsage` (matches System Settings)
 - **Battery**: `IOPowerSources` + IORegistry `AppleSmartBattery`
 
 ### Refresh Strategy
 
-- **Fast** (1s): temperature, power, CPU/GPU/memory, network, fan RPM
-- **Slow** (30s): battery state, remaining time, disk usage
+- **Fast** (1s, panel open): temperature, power, usage, network, fan RPM
+- **Slow** (30s): battery state, disk usage
+- **Panel closed**: fan state sampled every 10s (for the icon), power every 60s; SMART is read once at launch
 
 ### Permission Model
 
-- **No root needed**: reading temperature, power, usage stats, network, disk
-- **Root required**: writing SMC (fan speed control) — delegated to `fanhelper` via pipe IPC
+- **No root needed**: all monitoring (temperature, power, usage, network, disk, SMART)
+- **Root required**: writing SMC (fan speed) — delegated to the setuid `fanhelper` binary
 
 ---
 
@@ -174,52 +134,34 @@ The build script compiles the Swift app and C helper, then packages everything i
 ## FAQ
 
 **Why does it need my password?**  
-Fan speed control requires SMC write access, which macOS restricts to root. The `fanhelper` binary runs as root; the main app communicates with it via pipe.
+Fan speed control requires SMC write access, which macOS restricts to root. The `fanhelper` binary runs setuid root; monitoring itself needs no privileges.
 
 **Does manual fan speed persist?**  
-Yes. It stays at the set RPM until you click "Restore Auto" or reboot.
+It stays at the set RPM until you slide back to minimum, quit the app, or reboot. The app restores auto mode on exit.
 
 **Intel Mac support?**  
-No. SMC key names (`PCPU` / `PGPU`) and IOReport channels differ from Apple Silicon.
-
-**macOS 26 beta battery time wrong?**  
-macOS 26 beta has a known bug where `kIOPSTimeToEmptyKey` returns -1. FanSense reads `AppleSmartBattery` → `TimeRemaining` from IORegistry instead.
+No. SMC key names and IOReport channels differ from Apple Silicon.
 
 **Why is CPU power estimated?**  
 Apple Silicon's IOReport `CPU Energy` channel doesn't update on current macOS. FanSense approximates: `CPU ≈ PSTR(total) − GPU`.
 
-**External display power?**  
-Not supported. All real-time display power APIs on M1 Pro return static snapshots, not live wattage values.
+**SSD health shows nothing?**  
+SMART is only available for the internal NVMe drive, and requires the current `fanhelper` to be installed.
 
 ---
 
 ## Roadmap
 
-### Done
-- [x] Menu bar icon + NSPanel real-time panel
-- [x] Temperature / power / battery / fan / CPU / GPU / memory / network / disk
-- [x] Manual fan speed control
-- [x] 60-second power history chart
-- [x] Energy efficiency rating
-- [x] Semantic color system + threshold alerts
-- [x] Dynamic rotating icon (RPM-mapped)
-- [x] Liquid Glass panel design
-
-### Planned
 - [ ] Custom fan curve (temperature → RPM mapping)
 - [ ] History export (CSV / JSON)
 - [ ] Multi-fan support (MacBook Pro 16" dual fan)
-- [ ] Notification Center integration
 - [ ] Headless CLI mode
 
 ---
 
 ## Credits
 
-Built with reference to:
-
 - [SMCKit](https://github.com/beltex/SMCKit) — SMC read/write primitives
-- [iStat Menus](https://bjango.com/mac/istatmenus/) — UI design inspiration
 - Apple IOKit / IOReport framework documentation
 - [powermetrics](https://gist.github.com/samlown/5404439) — power monitoring exploration
 
