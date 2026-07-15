@@ -5,7 +5,7 @@ A menu bar fan control and system monitor for Apple Silicon Macs. Shows temperat
 ![Platform](https://img.shields.io/badge/platform-macOS-blue)
 ![Architecture](https://img.shields.io/badge/architecture-Apple%20Silicon-orange)
 ![Swift](https://img.shields.io/badge/swift-5.9+-red)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-GPL--3.0-green)
 
 > 中文文档: [README_CN.md](README_CN.md)
 
@@ -169,7 +169,7 @@ SMART is only available for the internal NVMe drive, and requires the current `f
 
 ## License
 
-MIT License — see [LICENSE](LICENSE).
+GPL-3.0 — see [LICENSE](LICENSE). Versions up to v1.0.0 were released under MIT.
 
 ---
 

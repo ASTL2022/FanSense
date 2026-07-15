@@ -166,7 +166,7 @@ SMART 仅支持内置 NVMe 盘，且需要安装最新版 `fanhelper`。
 
 ## 许可协议
 
-MIT License
+GPL-3.0（v1.0.0 及之前版本按 MIT 发布）
 
 ---
 
