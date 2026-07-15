@@ -144,10 +144,15 @@ static void print_state(void) {
 }
 
 static void print_sensors(void) {
-    float cpu_avg = 0, gpu = 0, batt_avg = 0;
-    int cpu_count = 0, batt_count = 0;
+    float cpu_avg = 0, gpu_avg = 0, batt_avg = 0;
+    int cpu_count = 0, gpu_count = 0, batt_count = 0;
 
-    const char *cpu_keys[] = {"Tp09", "Tp01", "Tp05", "Tp0D", "Tp0H", NULL};
+    // P/E-core die sensors across M1-M4 generations; missing keys read 0 and are skipped.
+    const char *cpu_keys[] = {
+        "Tp09", "Tp01", "Tp05", "Tp0D", "Tp0H",                   // M1/M2
+        "Tp0V", "Tp0Y", "Tp0b", "Tp0e",                           // M3/M4 P-core
+        "Te05", "Te09", "Te0H", "Te0S", "Te0L", "Te0P",           // M3/M4 E-core
+        NULL};
     for (int i = 0; cpu_keys[i]; i++) {
         float t = 0;
         if (smc_read_float(cpu_keys[i], &t) == 0 && t > 0) {
@@ -157,7 +162,20 @@ static void print_sensors(void) {
     }
     if (cpu_count > 0) cpu_avg /= cpu_count;
 
-    smc_read_float("Tg0D", &gpu);
+    const char *gpu_keys[] = {
+        "Tg0D", "Tg05", "Tg0L", "Tg0T",                           // M1
+        "Tg0f", "Tg0n",                                           // M2
+        "Tf14", "Tf18", "Tf19", "Tf1A", "Tf24", "Tf28", "Tf29", "Tf2A", // M3
+        "Tg0G", "Tg0H", "Tg1U", "Tg1k", "Tg0K", "Tg0d", "Tg0e", "Tg0j", "Tg0k", // M4
+        NULL};
+    for (int i = 0; gpu_keys[i]; i++) {
+        float t = 0;
+        if (smc_read_float(gpu_keys[i], &t) == 0 && t > 0) {
+            gpu_avg += t;
+            gpu_count++;
+        }
+    }
+    if (gpu_count > 0) gpu_avg /= gpu_count;
 
     const char *batt_keys[] = {"TB0T", "TB1T", "TB2T", NULL};
     for (int i = 0; batt_keys[i]; i++) {
@@ -181,7 +199,7 @@ static void print_sensors(void) {
     smc_read_float("PDTR", &pdtr);
 
     printf("cpu_temp=%.1f\n", cpu_avg);
-    printf("gpu_temp=%.1f\n", gpu);
+    printf("gpu_temp=%.1f\n", gpu_avg);
     printf("battery_temp=%.1f\n", batt_avg);
     printf("battery_remaining=%d\n", b0rm);
     printf("battery_capacity=%d\n", b0fc);
@@ -191,10 +209,17 @@ static void print_sensors(void) {
     printf("pdtr=%.2f\n", pdtr);
 }
 
+// Bump whenever helper commands/output change, so the app can prompt to reinstall.
+#define HELPER_VERSION "3"
+
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: fanhelper read|sensors|all|smart|set <rpm>|auto\n");
+        fprintf(stderr, "usage: fanhelper version|read|sensors|all|smart|set <rpm>|auto\n");
         return 2;
+    }
+    if (strcmp(argv[1], "version") == 0) {
+        printf("%s\n", HELPER_VERSION);
+        return 0;
     }
     extern void print_smart(void);
     if (strcmp(argv[1], "smart") == 0) {

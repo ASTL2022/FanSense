@@ -26,6 +26,7 @@ echo "==> 组装 $APP ..."
 rm -rf "$APP"
 mkdir -p "$APPBIN" "$APP/Contents/Resources"
 cp FanControl "$APPBIN/FanControl"
+cp fanhelper "$APP/Contents/Resources/fanhelper"
 cp -r fan_frames "$APP/Contents/Resources/fan_frames"
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 

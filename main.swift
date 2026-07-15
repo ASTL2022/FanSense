@@ -38,6 +38,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     var dataTimer: Timer?
     var sliderDebounce: Timer?
     var bgSampleTimer: Timer?
+    var setGeneration = 0
 
     var avgRPM: Double = 0
     var fanIsManual: Bool = false
@@ -108,6 +109,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         self.panel = p
 
         checkHelper()
+        ensureHelper()
         readSmartOnce()
         refresh(slow: true)
         dataTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
@@ -229,18 +231,33 @@ final class AppController: NSObject, NSApplicationDelegate {
             self.sliderDebounce?.invalidate()
             self.sliderDebounce = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
                 Task { @MainActor in
-                    guard let self, self.helperOK else { return }
+                    guard let self else { return }
+                    guard self.helperOK else { self.fanView.pendingChange = false; return }
+                    self.setGeneration += 1
+                    let gen = self.setGeneration
                     if rpm <= self.fanView.minRPM + 1 {
                         runHelper(["auto"])
                         self.fanView.pendingChange = false
+                        self.refresh()
                     } else {
-                        runHelper(["set", String(Int(rpm))])
-                        Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 3_000_000_000)
-                            self.fanView.pendingChange = false
+                        let target = Int(rpm)
+                        Task.detached { [weak self] in
+                            // Verify the SMC write landed (mode=1); retry on transient failure.
+                            var confirmed = false
+                            for attempt in 0..<3 {
+                                let fans = parseFans(runHelper(["set", String(target)]))
+                                if fans.contains(where: { $0.mode == 1 }) { confirmed = true; break }
+                                NSLog("FanSense: set %d rpm not confirmed (attempt %d)", target, attempt + 1)
+                                try? await Task.sleep(nanoseconds: 500_000_000)
+                            }
+                            await MainActor.run { [weak self, confirmed] in
+                                guard let self, gen == self.setGeneration else { return }
+                                if !confirmed { NSLog("FanSense: set %d rpm failed after retries", target) }
+                                self.fanView.pendingChange = false
+                                self.refresh()
+                            }
                         }
                     }
-                    self.refresh()
                 }
             }
         }
@@ -316,6 +333,32 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc func quit() { if helperOK { runHelper(["auto"]) }; NSApp.terminate(nil) }
     func checkHelper() { helperOK = FileManager.default.isExecutableFile(atPath: HELPER) }
 
+    static let helperVersion = "3"
+
+    func ensureHelper() {
+        let installed = FileManager.default.isExecutableFile(atPath: HELPER)
+        if installed,
+           runHelper(["version"]).trimmingCharacters(in: .whitespacesAndNewlines) == Self.helperVersion {
+            helperOK = true
+            return
+        }
+        guard let bundled = Bundle.main.path(forResource: "fanhelper", ofType: nil) else { return }
+
+        let alert = NSAlert()
+        alert.messageText = installed ? "需要更新风扇控制组件" : "需要安装风扇控制组件"
+        alert.informativeText = "FanSense 通过 fanhelper（安装到 /usr/local/bin）读取传感器并控制风扇转速，安装需要管理员权限，仅需一次。"
+        alert.addButton(withTitle: installed ? "更新" : "安装")
+        alert.addButton(withTitle: "取消")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let cmd = "mkdir -p /usr/local/bin && cp \\\"\(bundled)\\\" \(HELPER) && xattr -c \(HELPER) 2>/dev/null; chown root:wheel \(HELPER) && chmod 4755 \(HELPER)"
+        let script = "do shell script \"\(cmd)\" with administrator privileges"
+        var error: NSDictionary?
+        NSAppleScript(source: script)?.executeAndReturnError(&error)
+        checkHelper()
+    }
+
     func readSmartOnce() {
         guard helperOK else { return }
         Task.detached { [weak self] in
@@ -375,19 +418,18 @@ final class AppController: NSObject, NSApplicationDelegate {
     // MARK: - Data Refresh
 
     func refresh(slow: Bool = false) {
-        guard helperOK else { return }
         let cpuInfo = readCPU(prevTicks: &prevCPUTicks)
         let netInfo = readNetwork(prevBytes: &prevNetBytes)
 
         Task.detached { [weak self, cpuInfo, netInfo] in
             guard let self else { return }
             let memInfo = readMemory()
-            let (isOpen, tick) = await MainActor.run(body: { (self.isPanelVisible, self.tickCount) })
-            let needFans = isOpen || tick % 10 == 0
-            let output  = isOpen ? runHelper(["all"]) : (needFans ? runHelper(["read"]) : "")
+            let (isOpen, tick, hasHelper) = await MainActor.run(body: { (self.isPanelVisible, self.tickCount, self.helperOK) })
+            let needFans = hasHelper && (isOpen || tick % 10 == 0)
+            let output  = (isOpen && hasHelper) ? runHelper(["all"]) : (needFans ? runHelper(["read"]) : "")
             let parts   = output.components(separatedBy: "---\n")
             let fans    = needFans ? parseFans(parts.first ?? "") : []
-            let sensors = isOpen ? parseSensors(parts.count > 1 ? parts[1] : "") : SensorData()
+            let sensors = (isOpen && hasHelper) ? parseSensors(parts.count > 1 ? parts[1] : "") : SensorData()
             let diskInfo = (isOpen && slow) ? readDisk() : nil
             let bat      = isOpen ? readBatteryPS() : nil
             let hdr      = (isOpen && slow) ? readSystemHeader() : nil
