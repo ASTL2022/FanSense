@@ -1,4 +1,5 @@
 import Cocoa
+import SwiftUI
 @preconcurrency import UserNotifications
 
 let W: CGFloat       = 560
@@ -11,7 +12,26 @@ let CARD_R: CGFloat  = 14
 let PANEL_R: CGFloat = 18
 
 @MainActor
-final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSStatusItemExpandedInterfaceDelegate {
+final class IconModel: ObservableObject {
+    @Published var spinning = false
+    @Published var hot = false
+}
+
+struct StatusIconView: View {
+    @ObservedObject var model: IconModel
+    var body: some View {
+        Image(systemName: model.hot ? "flame.fill" : "fan.fill")
+            .font(.system(size: 13, weight: .medium))
+            .symbolEffect(.rotate.byLayer, options: .repeat(.continuous), isActive: model.spinning && !model.hot)
+            .contentTransition(.symbolEffect(.replace))
+            .foregroundStyle(model.hot ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(false)
+    }
+}
+
+@MainActor
+final class AppController: NSObject, NSApplicationDelegate {
 
     let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
@@ -21,11 +41,7 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
 
     var avgRPM: Double = 0
     var fanIsManual: Bool = false
-    var iconRotationActive = false
-    var iconRotationTimer: Timer?
-    var iconBaseImage: NSImage?
-    var iconFrames: [NSImage] = []
-    var iconFrameIndex: Int = 0
+    let iconModel = IconModel()
 
     var tickCount: Int = 0
     var isPanelVisible: Bool = false
@@ -37,23 +53,13 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
     let tempBarView    = TempBarView(frame: NSRect(x: 0, y: 0, width: W, height: TempBarView.height(count: 3)))
     let batteryBarView = BatteryBarView(frame: NSRect(x: 0, y: 0, width: W, height: BatteryBarView.h))
     let efficiencyView = EfficiencyView(frame: NSRect(x: 0, y: 0, width: W, height: EfficiencyView.viewH))
-    let fanSliderView  = FanSliderView(frame: NSRect(x: 0, y: 0, width: W, height: FanSliderView.h))
+    let fanView        = FanView(frame: NSRect(x: 0, y: 0, width: W, height: FanView.h))
     let metricBarView  = MetricBarView(frame: NSRect(x: 0, y: 0, width: W, height: MetricBarView.height(count: 3)))
     let netBarView     = NetBarView(frame: NSRect(x: 0, y: 0, width: W, height: NetBarView.height()))
     let diskBarView    = MetricBarView(frame: NSRect(x: 0, y: 0, width: W, height: MetricBarView.height(count: 2)))
 
-    lazy var autoBtn: NSButton = {
-        let b = NSButton(title: "恢复自动温控", target: self, action: #selector(setAuto))
-        b.bezelStyle = .rounded; b.font = .systemFont(ofSize: 12)
-        return b
-    }()
-    lazy var quitBtn: NSButton = {
-        let b = NSButton(title: "退出", target: self, action: #selector(quit))
-        b.bezelStyle = .rounded; b.font = .systemFont(ofSize: 12)
-        return b
-    }()
-
     var helperOK = false
+    var smartInfo: SmartInfo?
     var lastIsOnAC: Bool = true
     var lastBat: BatteryInfo? = nil
     var powerSamples: [Double] = []
@@ -102,6 +108,7 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
         self.panel = p
 
         checkHelper()
+        readSmartOnce()
         refresh(slow: true)
         dataTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -125,41 +132,38 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
 
     func setupIcon() {
         guard let btn = statusItem.button else { return }
-        let cfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
-        let sym = NSImage(systemSymbolName: "fan.fill", accessibilityDescription: nil)?
-                      .withSymbolConfiguration(cfg)
-               ?? NSImage(systemSymbolName: "fan", accessibilityDescription: nil)?
-                      .withSymbolConfiguration(cfg)
-        guard let sym else { return }
-        sym.isTemplate = true
-        iconBaseImage = sym
-        btn.image = sym
-        loadIconFrames()
-        statusItem.expandedInterfaceDelegate = self
-    }
-
-    func loadIconFrames() {
-        guard let base = iconBaseImage else { return }
-        let sz = base.size
-        iconFrames = (0..<30).map { i in
-            let angle = CGFloat(i) * 2.0 * .pi / 30.0
-            let img = NSImage(size: sz, flipped: false) { rect in
-                guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-                ctx.translateBy(x: rect.midX, y: rect.midY)
-                ctx.rotate(by: -angle)
-                base.draw(in: NSRect(x: -sz.width / 2, y: -sz.height / 2, width: sz.width, height: sz.height),
-                          from: .zero, operation: .sourceOver, fraction: 1.0)
-                return true
-            }
-            img.isTemplate = true
-            _ = img.tiffRepresentation
-            return img
+        let host = NSHostingView(rootView: StatusIconView(model: iconModel))
+        host.frame = btn.bounds
+        host.autoresizingMask = [.width, .height]
+        btn.addSubview(host)
+        btn.target = self
+        btn.action = #selector(statusClicked)
+        btn.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        if #available(macOS 27.0, *) {
+            statusItem.expandedInterfaceDelegate = self
         }
     }
 
-    // MARK: - NSStatusItemExpandedInterfaceDelegate
+    @objc func statusClicked() {
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            showQuitMenu()
+        } else if #unavailable(macOS 27.0) {
+            togglePanel()
+        }
+    }
 
-    func statusItem(_ statusItem: NSStatusItem, didBegin session: NSStatusItemExpandedInterfaceSession) {
+    func showQuitMenu() {
+        guard let btn = statusItem.button else { return }
+        let menu = NSMenu()
+        let item = NSMenuItem(title: "退出", action: #selector(quit), keyEquivalent: "q")
+        item.target = self
+        menu.addItem(item)
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: btn.bounds.height + 4), in: btn)
+    }
+
+    // MARK: - Panel Show/Hide
+
+    func showPanel() {
         guard let p = panel, let btn = statusItem.button,
               let screen = btn.window?.screen ?? NSScreen.main else { return }
 
@@ -175,14 +179,24 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
 
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self else { return }
-            DispatchQueue.main.async { self.statusItem.expandedInterfaceSession?.cancel() }
+            DispatchQueue.main.async {
+                if #available(macOS 27.0, *) {
+                    self.statusItem.expandedInterfaceSession?.cancel()
+                } else {
+                    self.hidePanel()
+                }
+            }
         }
     }
 
-    func statusItemDidEndExpandedInterfaceSession(_ statusItem: NSStatusItem, animated: Bool) {
+    func hidePanel() {
         panel?.orderOut(nil)
         isPanelVisible = false
         if let m = clickMonitor { NSEvent.removeMonitor(m); clickMonitor = nil }
+    }
+
+    @objc func togglePanel() {
+        isPanelVisible ? hidePanel() : showPanel()
     }
 
     // MARK: - Views
@@ -208,22 +222,22 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
         diskBarView.sectionTitle = "磁盘"
         diskBarView.entries = [
             .init(label: "已用", valueStr: "--", percent: 0,  color: .systemIndigo, warnAt: 0.80, critAt: 0.90),
-            .init(label: "可用", valueStr: "--", percent: -1, color: .systemIndigo, warnAt: 0.80, critAt: 0.90),
+            .init(label: "健康", valueStr: "--", percent: 0,  color: .systemGreen,  warnAt: 2, critAt: 2),
         ]
-        fanSliderView.onSliderChange = { [weak self] rpm in
+        fanView.onSliderChange = { [weak self] rpm in
             guard let self else { return }
             self.sliderDebounce?.invalidate()
             self.sliderDebounce = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
                 Task { @MainActor in
                     guard let self, self.helperOK else { return }
-                    if rpm <= self.fanSliderView.minRPM + 1 {
+                    if rpm <= self.fanView.minRPM + 1 {
                         runHelper(["auto"])
-                        self.fanSliderView.pendingChange = false
+                        self.fanView.pendingChange = false
                     } else {
                         runHelper(["set", String(Int(rpm))])
                         Task { @MainActor in
                             try? await Task.sleep(nanoseconds: 3_000_000_000)
-                            self.fanSliderView.pendingChange = false
+                            self.fanView.pendingChange = false
                         }
                     }
                     self.refresh()
@@ -235,10 +249,9 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
     private func makeContentView() -> NSView {
         let hPad:  CGFloat = 8
         let colGap: CGFloat = 8
-        let btnH:  CGFloat = 40
         let colW = (W - hPad * 2 - colGap) / 2
 
-        let leftGroups:  [[NSView]] = [[batteryBarView], [efficiencyView], [fanSliderView]]
+        let leftGroups:  [[NSView]] = [[batteryBarView], [efficiencyView], [fanView]]
         let rightGroups: [[NSView]] = [[tempBarView], [metricBarView], [netBarView], [diskBarView]]
 
         func makeCardView(_ views: [NSView], width: CGFloat) -> NSView {
@@ -272,18 +285,13 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
 
         let (leftCards,  leftH)  = buildCol(leftGroups,  width: colW)
         let (rightCards, rightH) = buildCol(rightGroups, width: colW)
-        let contentH = max(leftH, rightH) + btnH + GAP
+        let contentH = max(leftH, rightH)
 
         let c = NSView(frame: NSRect(x: 0, y: 0, width: W, height: contentH))
         let lx = hPad; var ly = contentH - GAP
         for card in leftCards { ly -= card.frame.height; card.frame.origin = NSPoint(x: lx, y: ly); c.addSubview(card); ly -= GAP }
         let rx = hPad + colW + colGap; var ry = contentH - GAP
         for card in rightCards { ry -= card.frame.height; card.frame.origin = NSPoint(x: rx, y: ry); c.addSubview(card); ry -= GAP }
-
-        let by = GAP
-        autoBtn.frame = NSRect(x: hPad, y: by + 7, width: 120, height: 26)
-        quitBtn.frame = NSRect(x: W - hPad - 70, y: by + 7, width: 70, height: 26)
-        c.addSubview(autoBtn); c.addSubview(quitBtn)
         return c
     }
 
@@ -305,9 +313,16 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
 
     // MARK: - Actions
 
-    @objc func setAuto() { guard helperOK else { return }; runHelper(["auto"]); refresh() }
     @objc func quit() { if helperOK { runHelper(["auto"]) }; NSApp.terminate(nil) }
     func checkHelper() { helperOK = FileManager.default.isExecutableFile(atPath: HELPER) }
+
+    func readSmartOnce() {
+        guard helperOK else { return }
+        Task.detached { [weak self] in
+            let info = parseSmart(runHelper(["smart"]))
+            await MainActor.run { [weak self] in self?.smartInfo = info }
+        }
+    }
 
     // MARK: - Background & Alerts
 
@@ -325,6 +340,7 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
                 self.efficiencyView.timeToEmpty = self.lastBat?.timeToEmpty ?? -1
                 self.efficiencyView.isOnBattery = !self.lastIsOnAC
                 self.efficiencyView.display()
+                self.updateIconHot(cpu: s.cpuTemp, gpu: s.gpuTemp)
                 self.checkPowerAlert()
             }
         }
@@ -366,10 +382,11 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
         Task.detached { [weak self, cpuInfo, netInfo] in
             guard let self else { return }
             let memInfo = readMemory()
-            let isOpen = await MainActor.run(body: { self.isPanelVisible })
-            let output  = isOpen ? runHelper(["all"]) : ""
+            let (isOpen, tick) = await MainActor.run(body: { (self.isPanelVisible, self.tickCount) })
+            let needFans = isOpen || tick % 10 == 0
+            let output  = isOpen ? runHelper(["all"]) : (needFans ? runHelper(["read"]) : "")
             let parts   = output.components(separatedBy: "---\n")
-            let fans    = isOpen ? parseFans(parts.first ?? "") : []
+            let fans    = needFans ? parseFans(parts.first ?? "") : []
             let sensors = isOpen ? parseSensors(parts.count > 1 ? parts[1] : "") : SensorData()
             let diskInfo = (isOpen && slow) ? readDisk() : nil
             let bat      = isOpen ? readBatteryPS() : nil
@@ -387,17 +404,20 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
                     self.batteryBarView.powerMode = powerMode
                     self.batteryBarView.pushSample(watts: systemPowerW)
                 }
+                if !fans.isEmpty {
+                    self.avgRPM = fans.map(\.cur).reduce(0, +) / Double(fans.count)
+                    self.fanIsManual = fans.contains { $0.mode == 1 }
+                    self.updateIconRotation()
+                }
+                if isOpen { self.updateIconHot(cpu: sensors.cpuTemp, gpu: sensors.gpuTemp) }
                 guard self.isPanelVisible else { return }
 
                 if let hdr { self.headerView.modelName = hdr.modelName; self.headerView.uptimeLine = hdr.uptimeStr; self.headerView.display() }
 
-                self.avgRPM = fans.isEmpty ? 0 : fans.map(\.cur).reduce(0, +) / Double(fans.count)
                 if let f = fans.first {
-                    let manual = fans.contains { $0.mode == 1 }
-                    self.fanIsManual = manual
-                    self.fanSliderView.update(cur: f.cur, min: fans.map(\.min).min() ?? 1500, max: fans.map(\.max).max() ?? 4700, target: f.target, manual: manual)
+                    self.fanView.update(cur: f.cur, min: fans.map(\.min).min() ?? 1500, max: fans.map(\.max).max() ?? 4700, target: f.target, manual: self.fanIsManual)
+                    self.fanView.push(rpm: self.avgRPM)
                 }
-                self.updateIconRotation()
 
                 self.tempBarView.entries = [
                     .init(label: "CPU", value: sensors.cpuTemp, warnAt: 60, critAt: 95),
@@ -418,10 +438,17 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
                 ]; self.netBarView.display()
 
                 if let d = diskInfo {
-                    self.diskBarView.entries = [
+                    var rows: [MetricBarView.Entry] = [
                         .init(label: "已用", valueStr: String(format: "%.0f%%", d.percent * 100), percent: d.percent, color: .systemIndigo, warnAt: 0.80, critAt: 0.90),
-                        .init(label: "可用", valueStr: String(format: "%.0fG", d.totalGB - d.usedGB), percent: -1, color: .systemIndigo, warnAt: 0.80, critAt: 0.90),
-                    ]; self.diskBarView.display()
+                    ]
+                    if let s = self.smartInfo, s.ok {
+                        let hColor: NSColor = s.health >= 90 ? .systemGreen
+                                            : s.health >= 70 ? .systemOrange
+                                            : .systemRed
+                        rows.append(.init(label: "健康", valueStr: "\(s.health)%", percent: Double(s.health) / 100, color: hColor, warnAt: 2, critAt: 2))
+                    }
+                    self.diskBarView.entries = rows
+                    self.diskBarView.display()
                 }
 
                 if let bat {
@@ -450,22 +477,22 @@ final class AppController: NSObject, NSApplicationDelegate, @preconcurrency NSSt
     // MARK: - Icon
 
     func updateIconRotation() {
-        guard let btn = statusItem.button, !iconFrames.isEmpty else { return }
-        if fanIsManual {
-            guard !iconRotationActive else { return }
-            iconRotationActive = true
-            iconRotationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
-                guard let self else { return }
-                Task { @MainActor in
-                    self.iconFrameIndex = (self.iconFrameIndex + 1) % self.iconFrames.count
-                    self.statusItem.button?.image = self.iconFrames[self.iconFrameIndex]
-                }
-            }
-        } else {
-            guard iconRotationActive else { return }
-            iconRotationActive = false; iconRotationTimer?.invalidate(); iconRotationTimer = nil
-            iconFrameIndex = 0; btn.image = iconBaseImage
-        }
+        withAnimation { iconModel.spinning = avgRPM >= 100 }
+    }
+
+    func updateIconHot(cpu: Double, gpu: Double) {
+        withAnimation { iconModel.hot = max(cpu, gpu) >= 80 }
+    }
+}
+
+@available(macOS 27.0, *)
+extension AppController: @preconcurrency NSStatusItemExpandedInterfaceDelegate {
+    func statusItem(_ statusItem: NSStatusItem, didBegin session: NSStatusItemExpandedInterfaceSession) {
+        showPanel()
+    }
+
+    func statusItemDidEndExpandedInterfaceSession(_ statusItem: NSStatusItem, animated: Bool) {
+        hidePanel()
     }
 }
 

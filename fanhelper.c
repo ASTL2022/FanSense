@@ -193,8 +193,13 @@ static void print_sensors(void) {
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: fanhelper read|sensors|all|set <rpm>|auto\n");
+        fprintf(stderr, "usage: fanhelper read|sensors|all|smart|set <rpm>|auto\n");
         return 2;
+    }
+    extern void print_smart(void);
+    if (strcmp(argv[1], "smart") == 0) {
+        print_smart();          // no SMC needed
+        return 0;
     }
     if (smc_open() != 0) {
         fprintf(stderr, "ERROR: cannot open AppleSMC\n");
@@ -217,7 +222,7 @@ int main(int argc, char **argv) {
         set_auto();
         print_state();
     } else {
-        fprintf(stderr, "usage: fanhelper read|sensors|all|set <rpm>|auto\n");
+        fprintf(stderr, "usage: fanhelper read|sensors|all|smart|set <rpm>|auto\n");
         rc = 2;
     }
 

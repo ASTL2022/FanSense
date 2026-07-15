@@ -10,7 +10,7 @@ SDK="$XCODE_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
 [ -d "$TOOLCHAIN" ] || { echo "Xcode not found at $XCODE_DIR. Install Xcode or run: sudo xcode-select -s /Applications/Xcode.app"; exit 1; }
 
 echo "==> 编译 SMC helper (C)..."
-"$TOOLCHAIN/clang" -isysroot "$SDK" -O2 -framework IOKit -framework CoreFoundation smc.c fanhelper.c -o fanhelper
+"$TOOLCHAIN/clang" -isysroot "$SDK" -O2 -framework IOKit -framework CoreFoundation smc.c nvme_smart.c fanhelper.c -o fanhelper
 
 echo "==> 编译 FanControl (Swift) ..."
 "$TOOLCHAIN/swiftc" -sdk "$SDK" -O -target arm64-apple-macosx15.0 -module-cache-path /tmp/swift-modcache-v2 -num-threads 4 \
@@ -18,7 +18,7 @@ echo "==> 编译 FanControl (Swift) ..."
     TransparentPanel.swift RoundedPanelView.swift HeaderView.swift \
     SystemBarView.swift NetBarView.swift MetricBarView.swift \
     TempBarView.swift ChargeChartView.swift EfficiencyView.swift \
-    BatteryBarView.swift FanSliderView.swift \
+    BatteryBarView.swift FanView.swift \
     main.swift \
     -o FanControl
 

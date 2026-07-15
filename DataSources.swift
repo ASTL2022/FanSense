@@ -90,6 +90,33 @@ func parseSensors(_ out: String) -> SensorData {
 
 // MARK: - System Stats
 
+struct SmartInfo {
+    var ok: Bool = false
+    var health: Int = 0        // 100 - percentage_used
+    var spare: Int = 0         // available spare %
+    var writtenTB: Double = 0
+    var temp: Int = 0
+}
+
+func parseSmart(_ out: String) -> SmartInfo {
+    var s = SmartInfo()
+    for line in out.split(separator: "\n") {
+        let pair = line.split(separator: "=")
+        guard pair.count == 2 else { continue }
+        let key = String(pair[0])
+        let val = String(pair[1])
+        switch key {
+        case "smart_ok":         s.ok        = val == "1"
+        case "smart_health":     s.health    = Int(val) ?? 0
+        case "smart_spare":      s.spare     = Int(val) ?? 0
+        case "smart_written_tb": s.writtenTB = Double(val) ?? 0
+        case "smart_temp":       s.temp      = Int(val) ?? 0
+        default: break
+        }
+    }
+    return s
+}
+
 struct MemoryInfo {
     var usedGB: Double = 0
     var totalGB: Double = 0
@@ -250,6 +277,16 @@ struct DiskInfo {
 
 func readDisk(path: String = "/") -> DiskInfo {
     var info = DiskInfo()
+    // importantUsage 口径包含可清除空间（快照/缓存），与系统设置显示一致
+    let url = URL(fileURLWithPath: path)
+    if let v = try? url.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]),
+       let total = v.volumeTotalCapacity, total > 0,
+       let avail = v.volumeAvailableCapacityForImportantUsage, avail > 0 {
+        info.totalGB = Double(total) / 1e9
+        info.usedGB  = Double(Int64(total) - avail) / 1e9
+        info.percent = info.usedGB / info.totalGB
+        return info
+    }
     guard let attrs = try? FileManager.default.attributesOfFileSystem(forPath: path),
           let total = attrs[.systemSize]         as? Int64,
           let free  = attrs[.systemFreeSize]     as? Int64
