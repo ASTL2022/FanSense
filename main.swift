@@ -66,6 +66,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     var smartInfo: SmartInfo?
     var lastIsOnAC: Bool = true
     var lastBat: BatteryInfo? = nil
+    var lastSensorData: SensorData = SensorData()
     var powerSamples: [Double] = []
     var lastNotifyTime: Date? = nil
 
@@ -144,15 +145,12 @@ final class AppController: NSObject, NSApplicationDelegate {
         btn.target = self
         btn.action = #selector(statusClicked)
         btn.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        if #available(macOS 27.0, *) {
-            statusItem.expandedInterfaceDelegate = self
-        }
     }
 
     @objc func statusClicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             showQuitMenu()
-        } else if #unavailable(macOS 27.0) {
+        } else {
             togglePanel()
         }
     }
@@ -185,11 +183,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self else { return }
             DispatchQueue.main.async {
-                if #available(macOS 27.0, *) {
-                    self.statusItem.expandedInterfaceSession?.cancel()
-                } else {
                     self.hidePanel()
-                }
             }
         }
     }
@@ -378,12 +372,13 @@ final class AppController: NSObject, NSApplicationDelegate {
             let out = runHelper(["sensors"]); let s = parseSensors(out)
             await MainActor.run { [weak self] in
                 guard let self else { return }
+                self.lastSensorData = s
                 let w = s.pstr > 0 ? s.pstr : 0
                 self.powerSamples.append(w)
                 if self.powerSamples.count > 5 { self.powerSamples.removeFirst() }
                 let avg = self.powerSamples.isEmpty ? 0.0 : self.powerSamples.reduce(0, +) / Double(self.powerSamples.count)
                 self.efficiencyView.avgWatts = avg
-                self.efficiencyView.timeToEmpty = self.lastBat?.timeToEmpty ?? -1
+                self.efficiencyView.timeToEmpty = effectiveTimeToEmpty(bat: self.lastBat, sensors: s)
                 self.efficiencyView.isOnBattery = !self.lastIsOnAC
                 self.efficiencyView.display()
                 self.updateIconHot(cpu: s.cpuTemp, gpu: s.gpuTemp)
@@ -396,7 +391,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         guard !lastIsOnAC, powerSamples.count == 5 else { return }
         let avg = powerSamples.reduce(0, +) / 5.0
         guard avg >= 15 else { return }
-        let tte = lastBat?.timeToEmpty ?? -1
+        let tte = effectiveTimeToEmpty(bat: lastBat, sensors: lastSensorData)
         guard tte > 0, tte < 180 else { return }
         if let last = lastNotifyTime, Date().timeIntervalSince(last) < 1800 { return }
         lastNotifyTime = Date()
@@ -507,7 +502,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                     self.efficiencyView.isOnBattery = (powerMode == 0)
                     if powerMode == 1 { self.batteryBarView.timeLine = wattsStr }
                     else if powerMode == 0 {
-                        let tte = bat.timeToEmpty
+                        let tte = bat.timeToEmpty > 0 ? bat.timeToEmpty : estimateTimeToEmpty(from: sensors)
                         self.batteryBarView.timeLine = tte > 0 ? "剩余续航 \(tte / 60)小时\(tte % 60)分  ·  \(wattsStr)" : wattsStr
                     } else {
                         let t = sensors.batteryTemp > 0 ? String(format: "  ·  %.1f°C", sensors.batteryTemp) : ""
@@ -527,17 +522,6 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func updateIconHot(cpu: Double, gpu: Double) {
         withAnimation { iconModel.hot = max(cpu, gpu) >= 80 }
-    }
-}
-
-@available(macOS 27.0, *)
-extension AppController: @preconcurrency NSStatusItemExpandedInterfaceDelegate {
-    func statusItem(_ statusItem: NSStatusItem, didBegin session: NSStatusItemExpandedInterfaceSession) {
-        showPanel()
-    }
-
-    func statusItemDidEndExpandedInterfaceSession(_ statusItem: NSStatusItem, animated: Bool) {
-        hidePanel()
     }
 }
 

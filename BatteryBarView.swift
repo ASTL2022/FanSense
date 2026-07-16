@@ -73,7 +73,7 @@ final class BatteryBarView: NSView {
         if !subText.isEmpty {
             NSAttributedString(string: subText, attributes: [
                 .font: NSFont.systemFont(ofSize: 10),
-                .foregroundColor: NSColor.secondaryLabelColor
+                .foregroundColor: NSColor.labelColor
             ]).draw(at: NSPoint(x: cX, y: barY + barH + 4))
         }
 

@@ -128,7 +128,7 @@ final class FanView: NSView {
         if !sectionTitle.isEmpty {
             NSAttributedString(string: sectionTitle, attributes: [
                 .font: NSFont.systemFont(ofSize: 9, weight: .regular),
-                .foregroundColor: NSColor.tertiaryLabelColor
+                .foregroundColor: NSColor.secondaryLabelColor
             ]).draw(at: NSPoint(x: cX, y: bounds.height - headH + 2))
         }
 
@@ -172,7 +172,7 @@ final class FanView: NSView {
 
         // ── min/max 刻度 ──
         let tickFont  = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
-        let tickColor = NSColor.tertiaryLabelColor
+        let tickColor = NSColor.secondaryLabelColor
         let minAttr   = NSAttributedString(string: String(format: "%.0f", minRPM),
                                            attributes: [.font: tickFont, .foregroundColor: tickColor])
         let maxAttr   = NSAttributedString(string: String(format: "%.0f", maxRPM),
@@ -188,7 +188,7 @@ final class FanView: NSView {
         guard samples.count >= 2 else {
             NSAttributedString(string: "积累数据中…", attributes: [
                 .font: NSFont.systemFont(ofSize: 10),
-                .foregroundColor: NSColor.tertiaryLabelColor
+                .foregroundColor: NSColor.secondaryLabelColor
             ]).draw(at: NSPoint(x: bounds.width / 2 - 30,
                                  y: (chartTop + chartBottom) / 2 - 6))
             return
@@ -210,7 +210,7 @@ final class FanView: NSView {
         let gridColor = NSColor.separatorColor.withAlphaComponent(0.25)
         let labelAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
-            .foregroundColor: NSColor.tertiaryLabelColor
+            .foregroundColor: NSColor.secondaryLabelColor
         ]
         let tickCount = 4
         for t in 0...tickCount {
@@ -327,7 +327,7 @@ final class FanView: NSView {
 
         let timeAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
-            .foregroundColor: NSColor.quaternaryLabelColor
+            .foregroundColor: NSColor.tertiaryLabelColor
         ]
         let timeStr = n >= windowSize ? "60s" : "\(n)s"
         NSAttributedString(string: timeStr, attributes: timeAttrs)

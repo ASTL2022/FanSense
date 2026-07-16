@@ -5,15 +5,21 @@ cd "$(dirname "$0")"
 APP="FanControl.app"
 APPBIN="$APP/Contents/MacOS"
 XCODE_DIR=$(xcode-select -p)
-TOOLCHAIN="$XCODE_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
-SDK="$XCODE_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
-[ -d "$TOOLCHAIN" ] || { echo "Xcode not found at $XCODE_DIR. Install Xcode or run: sudo xcode-select -s /Applications/Xcode.app"; exit 1; }
+if [ -d "$XCODE_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin" ]; then
+    TOOLCHAIN="$XCODE_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
+    SDK="$XCODE_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+else
+    TOOLCHAIN="$XCODE_DIR/usr/bin"
+    SDK="$XCODE_DIR/SDKs/MacOSX.sdk"
+fi
+[ -d "$TOOLCHAIN" ] || { echo "Xcode tools not found. Install Xcode or Command Line Tools."; exit 1; }
 
 echo "==> 编译 SMC helper (C)..."
 "$TOOLCHAIN/clang" -isysroot "$SDK" -O2 -framework IOKit -framework CoreFoundation smc.c nvme_smart.c fanhelper.c -o fanhelper
 
-echo "==> 编译 FanControl (Swift) ..."
-"$TOOLCHAIN/swiftc" -sdk "$SDK" -O -target arm64-apple-macosx15.0 -module-cache-path /tmp/swift-modcache-v2 -num-threads 4 \
+ARCH=$(uname -m)
+echo "==> 编译 FanControl (Swift, $ARCH) ..."
+"$TOOLCHAIN/swiftc" -sdk "$SDK" -O -target "$ARCH-apple-macosx15.0" -module-cache-path /tmp/swift-modcache-v2 \
     DataSources.swift \
     TransparentPanel.swift RoundedPanelView.swift HeaderView.swift \
     SystemBarView.swift NetBarView.swift MetricBarView.swift \

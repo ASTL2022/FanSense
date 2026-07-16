@@ -40,7 +40,7 @@ final class MetricBarView: NSView {
         if !sectionTitle.isEmpty {
             NSAttributedString(string: sectionTitle, attributes: [
                 .font: NSFont.systemFont(ofSize: 9, weight: .regular),
-                .foregroundColor: NSColor.tertiaryLabelColor
+                .foregroundColor: NSColor.secondaryLabelColor
             ]).draw(at: NSPoint(x: cX, y: bounds.height - headH + 2))
         }
 
@@ -70,7 +70,7 @@ final class MetricBarView: NSView {
 
             // 小标题
             NSAttributedString(string: e.label, attributes: [
-                .font: titleFont, .foregroundColor: NSColor.tertiaryLabelColor
+                .font: titleFont, .foregroundColor: NSColor.secondaryLabelColor
             ]).draw(at: NSPoint(x: cX, y: titleY))
 
             // 主数值（左）

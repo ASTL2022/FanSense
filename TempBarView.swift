@@ -40,7 +40,7 @@ final class TempBarView: NSView {
         if !sectionTitle.isEmpty {
             NSAttributedString(string: sectionTitle, attributes: [
                 .font: NSFont.systemFont(ofSize: 9, weight: .regular),
-                .foregroundColor: NSColor.tertiaryLabelColor
+                .foregroundColor: NSColor.secondaryLabelColor
             ]).draw(at: NSPoint(x: cX, y: bounds.height - headH + 2))
         }
 
@@ -69,7 +69,7 @@ final class TempBarView: NSView {
             let titleY = mainY + 25 + 3
 
             NSAttributedString(string: e.label, attributes: [
-                .font: titleFont, .foregroundColor: NSColor.tertiaryLabelColor
+                .font: titleFont, .foregroundColor: NSColor.secondaryLabelColor
             ]).draw(at: NSPoint(x: cX, y: titleY))
 
             let valStr = e.value > 0 ? String(format: "%.0f°", e.value) : "--"

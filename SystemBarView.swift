@@ -34,7 +34,7 @@ final class SystemBarView: NSView {
             y -= SystemBarView.headH
             NSAttributedString(string: sectionTitle, attributes: [
                 .font: NSFont.systemFont(ofSize: 9, weight: .regular),
-                .foregroundColor: NSColor.tertiaryLabelColor
+                .foregroundColor: NSColor.secondaryLabelColor
             ]).draw(at: NSPoint(x: IP, y: y + 2))
         }
 

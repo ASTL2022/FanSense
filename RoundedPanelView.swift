@@ -4,13 +4,18 @@
 import Cocoa
 
 func makeCard(cornerRadius: CGFloat) -> NSView {
+    let wrapper = NSView(frame: .zero)
+    wrapper.wantsLayer = true
+    wrapper.layer?.cornerRadius = cornerRadius
+    wrapper.layer?.masksToBounds = true
+
     let ve = NSVisualEffectView(frame: .zero)
     ve.material = .hudWindow
     ve.state = .active
-    ve.wantsLayer = true
-    ve.layer?.cornerRadius = cornerRadius
-    ve.layer?.masksToBounds = true
-    return ve
+    ve.autoresizingMask = [.width, .height]
+    ve.frame = wrapper.bounds
+    wrapper.addSubview(ve)
+    return wrapper
 }
 
 func embedInCard(_ card: NSView, _ content: NSView) {
@@ -20,13 +25,18 @@ func embedInCard(_ card: NSView, _ content: NSView) {
 }
 
 func makeGlassPanel(cornerRadius: CGFloat) -> NSView {
+    let wrapper = NSView(frame: .zero)
+    wrapper.wantsLayer = true
+    wrapper.layer?.cornerRadius = cornerRadius
+    wrapper.layer?.masksToBounds = true
+    wrapper.layer?.borderWidth = 0.5
+    wrapper.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.3).cgColor
+
     let ve = NSVisualEffectView(frame: .zero)
     ve.material = .hudWindow
     ve.state = .active
-    ve.wantsLayer = true
-    ve.layer?.cornerRadius = cornerRadius
-    ve.layer?.masksToBounds = true
-    ve.layer?.borderWidth = 0.5
-    ve.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.3).cgColor
-    return ve
+    ve.autoresizingMask = [.width, .height]
+    ve.frame = wrapper.bounds
+    wrapper.addSubview(ve)
+    return wrapper
 }

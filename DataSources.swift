@@ -288,8 +288,20 @@ func readDisk(path: String = "/") -> DiskInfo {
         info.totalGB = Double(total) / 1e9
         info.usedGB  = Double(Int64(total) - avail) / 1e9
         info.percent = info.usedGB / info.totalGB
-        return info
-    }
+    return info
+}
+
+// MARK: - Battery Time Estimation
+
+func estimateTimeToEmpty(from s: SensorData) -> Int {
+    guard s.batteryRemaining > 0, s.batteryCurrent < 0 else { return -1 }
+    return Int(Double(s.batteryRemaining) / Double(-s.batteryCurrent) * 60.0)
+}
+
+func effectiveTimeToEmpty(bat: BatteryInfo?, sensors: SensorData) -> Int {
+    if let tte = bat?.timeToEmpty, tte > 0 { return tte }
+    return estimateTimeToEmpty(from: sensors)
+}
     guard let attrs = try? FileManager.default.attributesOfFileSystem(forPath: path),
           let total = attrs[.systemSize]         as? Int64,
           let free  = attrs[.systemFreeSize]     as? Int64
@@ -437,4 +449,16 @@ func readBatteryPS() -> BatteryInfo {
     }
 
     return info
+}
+
+// MARK: - Battery Time Estimation
+
+func estimateTimeToEmpty(from s: SensorData) -> Int {
+    guard s.batteryRemaining > 0, s.batteryCurrent < 0 else { return -1 }
+    return Int(Double(s.batteryRemaining) / Double(-s.batteryCurrent) * 60.0)
+}
+
+func effectiveTimeToEmpty(bat: BatteryInfo?, sensors: SensorData) -> Int {
+    if let tte = bat?.timeToEmpty, tte > 0 { return tte }
+    return estimateTimeToEmpty(from: sensors)
 }

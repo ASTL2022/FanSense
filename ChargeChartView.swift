@@ -28,7 +28,7 @@ final class ChargeChartView: NSView {
         guard samples.count >= 2 else {
             NSAttributedString(string: "积累数据中…", attributes: [
                 .font: NSFont.systemFont(ofSize: 10),
-                .foregroundColor: NSColor.tertiaryLabelColor
+                .foregroundColor: NSColor.secondaryLabelColor
             ]).draw(at: NSPoint(x: bounds.width / 2 - 30,
                                  y: bounds.height / 2 - 6))
             return
@@ -51,7 +51,7 @@ final class ChargeChartView: NSView {
         let gridColor = NSColor.separatorColor.withAlphaComponent(0.25)
         let labelAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
-            .foregroundColor: NSColor.tertiaryLabelColor
+            .foregroundColor: NSColor.secondaryLabelColor
         ]
         let ticks = yTicks(scale: scale)
         for step in ticks {
@@ -190,7 +190,7 @@ final class ChargeChartView: NSView {
         // x-axis time label
         let timeAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
-            .foregroundColor: NSColor.quaternaryLabelColor
+            .foregroundColor: NSColor.tertiaryLabelColor
         ]
         let timeStr = n >= windowSize ? "60s" : "\(n)s"
         NSAttributedString(string: timeStr, attributes: timeAttrs)

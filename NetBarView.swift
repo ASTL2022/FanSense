@@ -30,7 +30,7 @@ final class NetBarView: NSView {
         if !sectionTitle.isEmpty {
             NSAttributedString(string: sectionTitle, attributes: [
                 .font: NSFont.systemFont(ofSize: 9, weight: .regular),
-                .foregroundColor: NSColor.tertiaryLabelColor
+                .foregroundColor: NSColor.secondaryLabelColor
             ]).draw(at: NSPoint(x: cX, y: bounds.height - NetBarView.headH + 2))
         }
 
@@ -50,7 +50,7 @@ final class NetBarView: NSView {
                 .font: mainFont, .foregroundColor: col.color
             ])
             let lblAttr = NSAttributedString(string: col.label, attributes: [
-                .font: titleFont, .foregroundColor: NSColor.tertiaryLabelColor
+                .font: titleFont, .foregroundColor: NSColor.secondaryLabelColor
             ])
 
             let valX: CGFloat = i == 0 ? cX : rightEdge - valAttr.size().width
