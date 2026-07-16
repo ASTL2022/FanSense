@@ -1,6 +1,6 @@
-# fanapp — 踩坑清单 (PITFALLS)
+# FanSense — 踩坑清单 (PITFALLS)
 
-> 仅收录 fanapp（菜单栏风扇/功耗控制工具）相关踩坑。
+> 仅收录 FanSense（菜单栏风扇/功耗控制工具）相关踩坑。
 > 主项目踩坑见 `~/MarsCandyBox/PITFALLS.md`。
 > 最后更新：2026-06-27 · 共 12 条
 

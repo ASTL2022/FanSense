@@ -1,4 +1,4 @@
-# fanapp — 数据来源速查表 (DATA_SOURCES)
+# FanSense — 数据来源速查表 (DATA_SOURCES)
 
 > 记录每类监控数据的来源 API、关键字段及已知限制。
 > 新增数据类型时先查本文件，避免重复踩坑。
@@ -247,4 +247,4 @@ let avgTimeToFull = dict["AvgTimeToFull"] as? Int  // 分钟
 | **设置键** | `F0Tg`（目标转速，需要 root / SMC 写权限）|
 | **单位** | RPM |
 | **刷新频率** | ~1s |
-| **注意** | 写 SMC 需要 `IOServiceOpen` 并有相应权限，fanapp 通过辅助进程或 helper 实现 |
+| **注意** | 写 SMC 需要 `IOServiceOpen` 并有相应权限，FanSense 通过辅助进程或 helper 实现 |
