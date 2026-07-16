@@ -52,7 +52,7 @@ chmod +x build.sh
 ./build.sh
 ```
 
-构建脚本会编译 Swift 主程序和 C 辅助工具，并打包为 `FanControl.app`。
+构建脚本会编译 Swift 主程序和 C 辅助工具，并打包为 `FanSense.app`。
 
 安装辅助工具（仅首次）：
 

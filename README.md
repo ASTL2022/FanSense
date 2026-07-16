@@ -55,7 +55,7 @@ chmod +x build.sh
 ./build.sh
 ```
 
-The build script compiles the Swift app and C helper, then packages everything into `FanControl.app`.
+The build script compiles the Swift app and C helper, then packages everything into `FanSense.app`.
 
 Install the helper (first time only):
 
