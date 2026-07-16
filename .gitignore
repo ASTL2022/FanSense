@@ -16,7 +16,7 @@ DerivedData/
 *.dmg
 *.pkg
 fanhelper
-FanControl
+FanSense
 
 # Compiled test binaries
 smc_dump
