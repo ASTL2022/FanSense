@@ -87,7 +87,7 @@ final class ChargeChartView: NSView {
 
         let fullCurve = smoothPath(pts)
 
-        let clipPath = fullCurve.copy() as! NSBezierPath
+        guard let clipPath = fullCurve.copy() as? NSBezierPath else { return }
         clipPath.line(to: NSPoint(x: pts.last!.x,  y: originY))
         clipPath.line(to: NSPoint(x: pts.first!.x, y: originY))
         clipPath.close()
@@ -192,8 +192,7 @@ final class ChargeChartView: NSView {
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
             .foregroundColor: NSColor.tertiaryLabelColor
         ]
-        let timeStr = n >= windowSize ? "60s" : "\(n)s"
-        NSAttributedString(string: timeStr, attributes: timeAttrs)
+        NSAttributedString(string: "60s", attributes: timeAttrs)
             .draw(at: NSPoint(x: originX + plotW - 24, y: botPad - 14))
     }
 

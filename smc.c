@@ -100,7 +100,7 @@ int smc_read_int(const char *key, int *out) {
         *out = ((unsigned char)b[0] << 24) | ((unsigned char)b[1] << 16) |
                ((unsigned char)b[2] << 8)  |  (unsigned char)b[3];
     } else if (ki.dataSize == 2) {
-        *out = ((unsigned char)b[0] << 8) | (unsigned char)b[1];
+        *out = (int16_t)(((unsigned char)b[0] << 8) | (unsigned char)b[1]);
     } else {
         *out = (unsigned char)b[0];
     }

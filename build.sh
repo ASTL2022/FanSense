@@ -2,6 +2,7 @@
 set -e
 cd "$(dirname "$0")"
 
+VERSION="1.2.0"
 APP="FanSense.app"
 APPBIN="$APP/Contents/MacOS"
 XCODE_DIR=$(xcode-select -p)
@@ -44,8 +45,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>FanSense</string>
   <key>CFBundleDisplayName</key><string>FanSense</string>
   <key>CFBundleIdentifier</key><string>local.fansense</string>
-  <key>CFBundleVersion</key><string>1.1.0</string>
-  <key>CFBundleShortVersionString</key><string>1.1.0</string>
+  <key>CFBundleVersion</key><string>${VERSION}</string>
+  <key>CFBundleShortVersionString</key><string>${VERSION}</string>
   <key>CFBundleExecutable</key><string>FanSense</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleSignature</key><string>????</string>
@@ -60,6 +61,42 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 echo "==> 代码签名..."
 codesign --force --deep --sign - "$APP"
+
+echo "==> 打包 DMG (FanSense-${VERSION}.dmg) ..."
+DMG_TMP="/tmp/fansense-build"
+rm -rf "$DMG_TMP"
+mkdir -p "$DMG_TMP"
+cp -R "$APP" "$DMG_TMP/"
+osascript -e "tell application \"Finder\" to make new alias file at (POSIX file \"$DMG_TMP\") to folder \"Applications\" of startup disk with properties {name:\"Applications\"}" > /dev/null 2>&1
+
+DMG_NAME="FanSense-${VERSION}.dmg"
+rm -f "$DMG_NAME" /tmp/fansense-rw.dmg
+hdiutil create -size 8m -layout NONE -fs "Case-sensitive APFS" -volname FanSense -attach /tmp/fansense-rw.dmg > /dev/null 2>&1
+sleep 1
+ditto "$DMG_TMP/$APP"           "/Volumes/FanSense/$APP"
+ditto "$DMG_TMP/Applications"    "/Volumes/FanSense/Applications"
+osascript -e '
+tell application "Finder"
+    open disk "FanSense"
+    delay 0.5
+    set theWindow to container window of disk "FanSense"
+    set bounds of theWindow to {200, 200, 660, 400}
+    set toolbar visible of theWindow to false
+    set statusbar visible of theWindow to false
+    set current view of theWindow to icon view
+    delay 0.3
+    set position of item "FanSense.app" of theWindow to {110, 100}
+    set position of item "Applications" of theWindow to {340, 100}
+    delay 0.3
+    close theWindow
+    update disk "FanSense"
+end tell
+' 2>/dev/null
+hdiutil detach /Volumes/FanSense > /dev/null 2>&1
+sleep 1
+hdiutil convert /tmp/fansense-rw.dmg -format UDZO -o "$DMG_NAME" > /dev/null 2>&1
+rm -f /tmp/fansense-rw.dmg
+rm -rf "$DMG_TMP"
 
 echo "==> 编译完成: $(pwd)/$APP"
 echo ""

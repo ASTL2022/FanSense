@@ -123,7 +123,7 @@ NSVisualEffectView
 ┌──────────────┐
 │  74%          │  ← 20pt semibold mono，语义色，距顶 24pt
 │  CPU          │  ← 10pt regular secondary，距顶 10pt
-│▓▓▓▓▓░░░░░░░│  ← TR=2.5 轨道，底部 barY = TR+4
+│▓▓▓▓▓░░░░░░░│  ← TR=2.5 轨道，底部 barY = rowTop + TR + 4
 └──────────────┘
 ```
 

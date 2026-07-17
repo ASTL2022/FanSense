@@ -221,7 +221,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         diskBarView.sectionTitle = "磁盘"
         diskBarView.entries = [
             .init(label: "已用", valueStr: "--", percent: 0,  color: .systemIndigo, warnAt: 0.80, critAt: 0.90),
-            .init(label: "健康", valueStr: "--", percent: 0,  color: .systemGreen,  warnAt: 2, critAt: 2),
+            .init(label: "健康", valueStr: "--", percent: 0,  color: .systemGreen,  showStatus: false),
         ]
         fanView.onSliderChange = { [weak self] rpm in
             guard let self else { return }
@@ -485,7 +485,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                         let hColor: NSColor = s.health >= 90 ? .systemGreen
                                             : s.health >= 70 ? .systemOrange
                                             : .systemRed
-                        rows.append(.init(label: "健康", valueStr: "\(s.health)%", percent: Double(s.health) / 100, color: hColor, warnAt: 2, critAt: 2))
+                        rows.append(.init(label: "健康", valueStr: "\(s.health)%", percent: Double(s.health) / 100, color: hColor, showStatus: false))
                     }
                     self.diskBarView.entries = rows
                     self.diskBarView.display()

@@ -40,69 +40,7 @@ static int load_ioreport(void) {
     return 1;
 }
 
-static void print_backlight(void) {
-    if (!load_ioreport()) {
-        fprintf(stderr, "ERROR: cannot load IOReport\n");
-        return;
-    }
 
-    CFStringRef group = CFSTR("backlight report");
-    CFDictionaryRef bl = IOReportCopyChannelsInGroup(group, NULL, 0, 0, 0);
-    if (!bl) {
-        fprintf(stderr, "ERROR: backlight report not available\n");
-        return;
-    }
-
-    CFMutableDictionaryRef desired = CFDictionaryCreateMutableCopy(NULL, 0, bl);
-    CFRelease(bl);
-
-    CFMutableDictionaryRef subbed = NULL;
-    void* sub = IOReportCreateSubscription(NULL, desired, &subbed, 0, NULL);
-    CFRelease(desired);
-    if (!sub) {
-        fprintf(stderr, "ERROR: backlight subscription failed\n");
-        return;
-    }
-
-    CFDictionaryRef sample = IOReportCreateSamples(sub, subbed, NULL);
-    if (!sample) {
-        fprintf(stderr, "ERROR: backlight sample failed\n");
-        return;
-    }
-
-    CFArrayRef channels = CFDictionaryGetValue(sample, CFSTR("IOReportChannels"));
-    if (!channels) {
-        fprintf(stderr, "ERROR: no channels in backlight sample\n");
-        CFRelease(sample);
-        return;
-    }
-
-    long millinits = 0, microamps = 0, user_brightness = 0;
-    long dpb_raw = 65536;
-
-    for (long i = 0; i < CFArrayGetCount(channels); i++) {
-        void* ch = (void*)CFArrayGetValueAtIndex(channels, i);
-        CFStringRef name = IOReportChannelGetChannelName(ch);
-        if (!name) continue;
-
-        char nb[256] = {0};
-        CFStringGetCString(name, nb, sizeof(nb), kCFStringEncodingUTF8);
-        int64_t v = IOReportSimpleGetIntegerValue(ch, 0);
-
-        if (strcmp(nb, "MilliNits value") == 0)      millinits = (long)v;
-        else if (strcmp(nb, "MicroAmps value") == 0) microamps = (long)v;
-        else if (strcmp(nb, "UserBrightness value") == 0) user_brightness = (long)v;
-        else if (strcmp(nb, "DPB factor") == 0)      dpb_raw = (long)v;
-    }
-
-    CFRelease(sample);
-    // Note: sub + subbed leak intentionally (one-shot call, process exits)
-
-    printf("millinits=%ld\n", millinits);
-    printf("microamps=%ld\n", microamps);
-    printf("user_brightness=%ld\n", user_brightness);
-    printf("dpb_factor=%ld\n", dpb_raw);
-}
 
 static void clamp_and_set(float rpm) {
     int n = 0;

@@ -104,10 +104,6 @@ final class FanView: NSView {
         slider.action = #selector(sliderMoved(_:))
     }
 
-    func setSliderValue(_ v: Double) {
-        setSliderSilently(v)
-    }
-
     @objc private func sliderMoved(_ s: NSSlider) {
         pendingChange = true
         onSliderChange?(s.doubleValue)
@@ -243,7 +239,7 @@ final class FanView: NSView {
 
         // --- fill in color segments ---
         if let ctx = NSGraphicsContext.current?.cgContext {
-            let clipPath = fullCurve.copy() as! NSBezierPath
+            guard let clipPath = fullCurve.copy() as? NSBezierPath else { return }
             clipPath.line(to: NSPoint(x: pts.last!.x,  y: originY))
             clipPath.line(to: NSPoint(x: pts.first!.x, y: originY))
             clipPath.close()
@@ -329,8 +325,7 @@ final class FanView: NSView {
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
             .foregroundColor: NSColor.tertiaryLabelColor
         ]
-        let timeStr = n >= windowSize ? "60s" : "\(n)s"
-        NSAttributedString(string: timeStr, attributes: timeAttrs)
+        NSAttributedString(string: "60s", attributes: timeAttrs)
             .draw(at: NSPoint(x: originX + plotW - 24, y: originY - 14))
     }
 

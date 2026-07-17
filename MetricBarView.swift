@@ -11,8 +11,9 @@ final class MetricBarView: NSView {
         var valueStr: String
         var percent:  Double    // 0-1
         var color:    NSColor   // 正常色
-        var warnAt:   Double    // percent 阈值（橙）
-        var critAt:   Double    // percent 阈值（红）
+        var warnAt:   Double = 0.70   // percent 阈值（橙）
+        var critAt:   Double = 0.90   // percent 阈值（红）
+        var showStatus: Bool = true   // 为 false 时不显示状态文字，直接用 entry.color
     }
     var entries: [Entry] = [] { didSet { needsDisplay = true } }
     var sectionTitle: String = ""
@@ -51,15 +52,24 @@ final class MetricBarView: NSView {
         let statFont  = NSFont.systemFont(ofSize: 22, weight: .semibold)
 
         for (i, e) in entries.enumerated() {
-            let valColor: NSColor = e.percent >= e.critAt ? .systemRed
-                                  : e.percent >= e.warnAt ? .systemOrange
-                                  : e.color
-            let statColor: NSColor = e.percent >= e.critAt ? .systemRed
-                                   : e.percent >= e.warnAt ? .systemOrange
-                                   : .systemGreen
-            let statStr: String    = e.percent >= e.critAt ? "过载"
-                                   : e.percent >= e.warnAt ? "较高"
-                                   : "正常"
+            let valColor: NSColor
+            let statColor: NSColor
+            let statStr: String
+            if e.showStatus {
+                valColor  = e.percent >= e.critAt ? .systemRed
+                          : e.percent >= e.warnAt ? .systemOrange
+                          : e.color
+                statColor = e.percent >= e.critAt ? .systemRed
+                          : e.percent >= e.warnAt ? .systemOrange
+                          : .systemGreen
+                statStr   = e.percent >= e.critAt ? "过载"
+                          : e.percent >= e.warnAt ? "较高"
+                          : "正常"
+            } else {
+                valColor  = e.color
+                statColor = e.color
+                statStr   = ""
+            }
 
             let contentH = bounds.height - headH
             let rowBottom = contentH - CGFloat(i) * (rowH + rowGap) - rowH
@@ -79,10 +89,12 @@ final class MetricBarView: NSView {
             ]).draw(at: NSPoint(x: cX, y: mainY))
 
             // 状态文字（右）
-            let statAttr = NSAttributedString(string: statStr, attributes: [
-                .font: statFont, .foregroundColor: statColor
-            ])
-            statAttr.draw(at: NSPoint(x: rightEdge - statAttr.size().width, y: mainY))
+            if !statStr.isEmpty {
+                let statAttr = NSAttributedString(string: statStr, attributes: [
+                    .font: statFont, .foregroundColor: statColor
+                ])
+                statAttr.draw(at: NSPoint(x: rightEdge - statAttr.size().width, y: mainY))
+            }
 
             // 进度条
             let pct   = min(max(e.percent, 0), 1)
