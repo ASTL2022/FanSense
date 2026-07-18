@@ -19,6 +19,7 @@ final class FanView: NSView {
     var curRPM: Double = 0
     var minRPM: Double = 1500
     var maxRPM: Double = 4700
+    var targetRPM: Double = 0
     var fanMode: FanMode = .auto
     var sectionTitle: String = "风扇"
     var onSliderChange: ((Double) -> Void)?
@@ -83,10 +84,11 @@ final class FanView: NSView {
             return
         }
 
-        curRPM   = cur
-        minRPM   = min
-        maxRPM   = max
-        fanMode  = mode
+        curRPM    = cur
+        minRPM    = min
+        maxRPM    = max
+        targetRPM = target
+        fanMode   = mode
 
         slider.minValue = min
         slider.maxValue = max
@@ -94,7 +96,7 @@ final class FanView: NSView {
         if fanMode == .auto {
             setSliderSilently(min)
         } else {
-            setSliderSilently(Swift.min(Swift.max(target, min), max))
+            setSliderSilently(Swift.min(Swift.max(cur, min), max))
         }
 
         needsDisplay = true
@@ -184,7 +186,7 @@ final class FanView: NSView {
 
         if fanMode != .auto {
             let tAttr = NSAttributedString(
-                string: String(format: "目标 %.0f rpm", slider.doubleValue),
+                string: String(format: "目标 %.0f rpm", targetRPM),
                 attributes: [.font: subFont, .foregroundColor: accent.withAlphaComponent(0.8)])
             tAttr.draw(at: NSPoint(x: rightEdge - tAttr.size().width, y: subY))
         }
