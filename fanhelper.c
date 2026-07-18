@@ -6,41 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <dlfcn.h>
 #include <CoreFoundation/CoreFoundation.h>
-
-// ── IOReport private API (loaded via dlopen/dlsym) ──
-
-static CFDictionaryRef (*IOReportCopyChannelsInGroup)(CFStringRef, CFStringRef,
-    uint64_t, uint64_t, uint64_t);
-static void* (*IOReportCreateSubscription)(void*, CFDictionaryRef,
-    CFMutableDictionaryRef*, uint64_t, void*);
-static CFDictionaryRef (*IOReportCreateSamples)(void*, CFMutableDictionaryRef, void*);
-static CFStringRef (*IOReportChannelGetChannelName)(void*);
-static int64_t   (*IOReportSimpleGetIntegerValue)(void*, int);
-
-static int ioreport_loaded = 0;
-
-static int load_ioreport(void) {
-    if (ioreport_loaded) return 1;
-    void* h = dlopen("/usr/lib/libIOReport.dylib", RTLD_LAZY);
-    if (!h) return 0;
-    IOReportCopyChannelsInGroup  = dlsym(h, "IOReportCopyChannelsInGroup");
-    IOReportCreateSubscription   = dlsym(h, "IOReportCreateSubscription");
-    IOReportCreateSamples        = dlsym(h, "IOReportCreateSamples");
-    IOReportChannelGetChannelName = dlsym(h, "IOReportChannelGetChannelName");
-    IOReportSimpleGetIntegerValue = dlsym(h, "IOReportSimpleGetIntegerValue");
-    if (!IOReportCopyChannelsInGroup || !IOReportCreateSubscription ||
-        !IOReportCreateSamples || !IOReportChannelGetChannelName ||
-        !IOReportSimpleGetIntegerValue) {
-        dlclose(h);
-        return 0;
-    }
-    ioreport_loaded = 1;
-    return 1;
-}
-
-
 
 static void clamp_and_set(float rpm) {
     int n = 0;
@@ -151,7 +117,7 @@ static void print_sensors(void) {
 }
 
 // Bump whenever helper commands/output change, so the app can prompt to reinstall.
-#define HELPER_VERSION "3"
+#define HELPER_VERSION "4"
 
 int main(int argc, char **argv) {
     if (argc < 2) {

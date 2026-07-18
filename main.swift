@@ -42,9 +42,10 @@ final class AppController: NSObject, NSApplicationDelegate {
     var sliderDebounce: Timer?
     var bgSampleTimer: Timer?
     var setGeneration = 0
+    var writeInFlight = 0
 
     var avgRPM: Double = 0
-    var fanIsManual: Bool = false
+    var fanMode: FanMode = .auto
     let iconModel = IconModel()
 
     var tickCount: Int = 0
@@ -148,20 +149,85 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     @objc func statusClicked() {
-        if NSApp.currentEvent?.type == .rightMouseUp {
-            showQuitMenu()
-        } else {
+        guard let event = NSApp.currentEvent else { return }
+        let isContextClick = event.type == .rightMouseUp
+            || (event.type == .leftMouseUp && event.modifierFlags.contains(.control))
+        if isContextClick {
+            showContextMenu()
+        } else if event.type == .leftMouseUp, event.clickCount == 1 {
             togglePanel()
         }
     }
 
-    func showQuitMenu() {
+    func showContextMenu() {
         guard let btn = statusItem.button else { return }
         let menu = NSMenu()
-        let item = NSMenuItem(title: "退出", action: #selector(quit), keyEquivalent: "q")
-        item.target = self
-        menu.addItem(item)
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: btn.bounds.height + 4), in: btn)
+        menu.autoenablesItems = false
+
+        let chargingItem = NSMenuItem(title: "充电模式", action: #selector(toggleChargingMode), keyEquivalent: "")
+        chargingItem.target = self
+        chargingItem.state = fanMode == .charging ? .on : .off
+        menu.addItem(chargingItem)
+
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(title: "退出", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        menu.popUp(positioning: nil, at: NSPoint(x: -1, y: -4), in: btn)
+    }
+
+    @objc func toggleChargingMode() {
+        guard helperOK else { return }
+        if fanMode == .charging {
+            // 已开启 → 恢复自动
+            restoreAutoMode()
+            return
+        }
+        // 开启充电模式：风扇拉满（写确认 + 重试，同滑块路径）
+        setGeneration += 1
+        let gen = setGeneration
+        fanMode = .charging
+        fanView.pendingChange = true
+        writeInFlight += 1
+        Task.detached { [weak self] in
+            guard let self else { return }
+            let fans = parseFans(runHelper(["read"]))
+            let target = Int(fans.map(\.max).max() ?? 4700)
+            var confirmed = false
+            for attempt in 0..<3 {
+                guard await MainActor.run(body: { self.setGeneration == gen }) else { break }
+                let result = parseFans(runHelper(["set", String(target)]))
+                if result.contains(where: { $0.mode == 1 }) { confirmed = true; break }
+                NSLog("FanSense: charging set %d rpm not confirmed (attempt %d)", target, attempt + 1)
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+            await MainActor.run { [confirmed] in
+                self.writeInFlight -= 1
+                guard gen == self.setGeneration else { return }
+                if !confirmed { NSLog("FanSense: charging set %d rpm failed after retries", target) }
+                self.fanView.pendingChange = false
+                self.refresh()
+            }
+        }
+    }
+
+    /// 恢复系统自动控制（滑块拉到最左 / 关闭充电模式 / 拔电自动退出共用）。
+    func restoreAutoMode() {
+        setGeneration += 1
+        let gen = setGeneration
+        fanMode = .auto
+        fanView.pendingChange = false
+        writeInFlight += 1
+        Task.detached { [weak self] in
+            runHelper(["auto"])
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.writeInFlight -= 1
+                if gen == self.setGeneration { self.refresh() }
+            }
+        }
     }
 
     // MARK: - Panel Show/Hide
@@ -230,25 +296,26 @@ final class AppController: NSObject, NSApplicationDelegate {
                 Task { @MainActor in
                     guard let self else { return }
                     guard self.helperOK else { self.fanView.pendingChange = false; return }
-                    self.setGeneration += 1
-                    let gen = self.setGeneration
                     if rpm <= self.fanView.minRPM + 1 {
-                        runHelper(["auto"])
-                        self.fanView.pendingChange = false
-                        self.refresh()
+                        self.restoreAutoMode()
                     } else {
+                        self.setGeneration += 1
+                        let gen = self.setGeneration
+                        self.fanMode = .manual
                         let target = Int(rpm)
                         Task.detached { [weak self] in
+                            guard let self else { return }
                             // Verify the SMC write landed (mode=1); retry on transient failure.
                             var confirmed = false
                             for attempt in 0..<3 {
+                                guard await MainActor.run(body: { self.setGeneration == gen }) else { return }
                                 let fans = parseFans(runHelper(["set", String(target)]))
                                 if fans.contains(where: { $0.mode == 1 }) { confirmed = true; break }
                                 NSLog("FanSense: set %d rpm not confirmed (attempt %d)", target, attempt + 1)
                                 try? await Task.sleep(nanoseconds: 500_000_000)
                             }
-                            await MainActor.run { [weak self, confirmed] in
-                                guard let self, gen == self.setGeneration else { return }
+                            await MainActor.run { [confirmed] in
+                                guard gen == self.setGeneration else { return }
                                 if !confirmed { NSLog("FanSense: set %d rpm failed after retries", target) }
                                 self.fanView.pendingChange = false
                                 self.refresh()
@@ -330,7 +397,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc func quit() { if helperOK { runHelper(["auto"]) }; NSApp.terminate(nil) }
     func checkHelper() { helperOK = FileManager.default.isExecutableFile(atPath: HELPER) }
 
-    static let helperVersion = "3"
+    static let helperVersion = "4"
 
     func ensureHelper() {
         let installed = FileManager.default.isExecutableFile(atPath: HELPER)
@@ -349,7 +416,9 @@ final class AppController: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
-        let cmd = "mkdir -p /usr/local/bin && cp \\\"\(bundled)\\\" \(HELPER) && xattr -c \(HELPER) 2>/dev/null; chown root:wheel \(HELPER) && chmod 4755 \(HELPER)"
+        let escapedPath = bundled.replacingOccurrences(of: "\\", with: "\\\\")
+                                  .replacingOccurrences(of: "\"", with: "\\\"")
+        let cmd = "mkdir -p /usr/local/bin && cp \"\(escapedPath)\" \(HELPER) && xattr -c \(HELPER) 2>/dev/null; chown root:wheel \(HELPER) && chmod 4755 \(HELPER)"
         let script = "do shell script \"\(cmd)\" with administrator privileges"
         var error: NSDictionary?
         NSAppleScript(source: script)?.executeAndReturnError(&error)
@@ -422,14 +491,14 @@ final class AppController: NSObject, NSApplicationDelegate {
         Task.detached { [weak self, cpuInfo, netInfo] in
             guard let self else { return }
             let memInfo = readMemory()
-            let (isOpen, tick, hasHelper) = await MainActor.run(body: { (self.isPanelVisible, self.tickCount, self.helperOK) })
+            let (isOpen, tick, hasHelper, isChargingMode) = await MainActor.run(body: { (self.isPanelVisible, self.tickCount, self.helperOK, self.fanMode == .charging) })
             let needFans = hasHelper && (isOpen || tick % 10 == 0)
             let output  = (isOpen && hasHelper) ? runHelper(["all"]) : (needFans ? runHelper(["read"]) : "")
             let parts   = output.components(separatedBy: "---\n")
             let fans    = needFans ? parseFans(parts.first ?? "") : []
             let sensors = (isOpen && hasHelper) ? parseSensors(parts.count > 1 ? parts[1] : "") : SensorData()
             let diskInfo = (isOpen && slow) ? readDisk() : nil
-            let bat      = isOpen ? readBatteryPS() : nil
+            let bat      = (isOpen || isChargingMode) ? readBatteryPS() : nil
             let hdr      = (isOpen && slow) ? readSystemHeader() : nil
 
             await MainActor.run { [weak self] in
@@ -444,10 +513,24 @@ final class AppController: NSObject, NSApplicationDelegate {
                     self.batteryBarView.powerMode = powerMode
                     self.batteryBarView.pushSample(watts: systemPowerW)
                 }
+                var smcManual = false
                 if !fans.isEmpty {
                     self.avgRPM = fans.map(\.cur).reduce(0, +) / Double(fans.count)
-                    self.fanIsManual = fans.contains { $0.mode == 1 }
+                    smcManual = fans.contains { $0.mode == 1 }
+                    // Only sync when no write is in flight and no pending slider drag.
+                    if self.writeInFlight == 0, !self.fanView.pendingChange {
+                        if !smcManual && self.fanMode != .auto {
+                            self.fanMode = .auto
+                        } else if smcManual && self.fanMode == .auto {
+                            self.fanMode = .manual   // desync recovery (app re-launched while SMC manual)
+                        }
+                    }
                     self.updateIconRotation()
+                }
+                // Auto-exit charging mode when AC is lost (bat read happens every tick while charging).
+                if self.fanMode == .charging, let bat {
+                    self.lastIsOnAC = bat.isOnAC
+                    if !bat.isOnAC { self.restoreAutoMode() }
                 }
                 if isOpen { self.updateIconHot(cpu: sensors.cpuTemp, gpu: sensors.gpuTemp) }
                 guard self.isPanelVisible else { return }
@@ -455,7 +538,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 if let hdr { self.headerView.modelName = hdr.modelName; self.headerView.uptimeLine = hdr.uptimeStr; self.headerView.display() }
 
                 if let f = fans.first {
-                    self.fanView.update(cur: f.cur, min: fans.map(\.min).min() ?? 1500, max: fans.map(\.max).max() ?? 4700, target: f.target, manual: self.fanIsManual)
+                    self.fanView.update(cur: f.cur, min: fans.map(\.min).min() ?? 1500, max: fans.map(\.max).max() ?? 4700, target: f.target, mode: self.fanMode, smcManual: smcManual)
                     self.fanView.push(rpm: self.avgRPM)
                 }
 

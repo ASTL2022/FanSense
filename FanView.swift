@@ -3,6 +3,14 @@
 
 import Cocoa
 
+// MARK: - Fan Mode
+
+enum FanMode {
+    case auto
+    case manual
+    case charging
+}
+
 // MARK: - Fan View (RPM readout + slider + 60s history chart)
 
 final class FanView: NSView {
@@ -11,7 +19,7 @@ final class FanView: NSView {
     var curRPM: Double = 0
     var minRPM: Double = 1500
     var maxRPM: Double = 4700
-    var isManual: Bool = false
+    var fanMode: FanMode = .auto
     var sectionTitle: String = "风扇"
     var onSliderChange: ((Double) -> Void)?
 
@@ -21,7 +29,7 @@ final class FanView: NSView {
     private let slider = NSSlider()
     private struct Sample {
         var rpm: Double
-        var manual: Bool
+        var mode: FanMode
     }
     private var samples: [Sample] = []
     private let windowSize = 60
@@ -65,12 +73,12 @@ final class FanView: NSView {
 
     // MARK: - Data
 
-    func update(cur: Double, min: Double, max: Double, target: Double, manual: Bool) {
+    func update(cur: Double, min: Double, max: Double, target: Double, mode: FanMode, smcManual: Bool) {
         // While user has a pending slider command, don't let SMC state overwrite local UI.
-        // Clear pendingChange only when SMC confirms manual mode (meaning the set command landed).
+        // Clear pendingChange only when SMC confirms the requested mode landed.
         guard !pendingChange else {
             curRPM = cur
-            if manual { pendingChange = false }   // set command confirmed
+            if smcManual { pendingChange = false }   // set command confirmed
             needsDisplay = true
             return
         }
@@ -78,20 +86,22 @@ final class FanView: NSView {
         curRPM   = cur
         minRPM   = min
         maxRPM   = max
-        isManual = manual
+        fanMode  = mode
 
         slider.minValue = min
         slider.maxValue = max
 
-        if !isManual {
+        if fanMode == .auto {
             setSliderSilently(min)
+        } else {
+            setSliderSilently(Swift.min(Swift.max(target, min), max))
         }
 
         needsDisplay = true
     }
 
     func push(rpm: Double) {
-        samples.append(Sample(rpm: rpm, manual: isManual))
+        samples.append(Sample(rpm: rpm, mode: fanMode))
         if samples.count > windowSize { samples.removeFirst() }
         needsDisplay = true
     }
@@ -118,7 +128,13 @@ final class FanView: NSView {
         let cX = IP
         let cW = bounds.width - IP * 2
         let rightEdge = cX + cW
-        let accent: NSColor = isManual ? .systemOrange : .systemBlue
+        let accent: NSColor = {
+            switch fanMode {
+            case .charging: return .systemYellow
+            case .manual:   return .systemOrange
+            case .auto:     return .systemBlue
+            }
+        }()
 
         // ── 区段标题 ──
         if !sectionTitle.isEmpty {
@@ -139,7 +155,14 @@ final class FanView: NSView {
             .foregroundColor: NSColor.secondaryLabelColor
         ]).draw(at: NSPoint(x: cX + rpmAttr.size().width + 4, y: mainY + 4))
 
-        let modeAttr = NSAttributedString(string: isManual ? "手动" : "自动", attributes: [
+        let modeLabel: String = {
+            switch fanMode {
+            case .charging: return "充电"
+            case .manual:   return "手动"
+            case .auto:     return "自动"
+            }
+        }()
+        let modeAttr = NSAttributedString(string: modeLabel, attributes: [
             .font: NSFont.systemFont(ofSize: 22, weight: .semibold),
             .foregroundColor: accent
         ])
@@ -159,7 +182,7 @@ final class FanView: NSView {
             .font: subFont, .foregroundColor: subColor
         ]).draw(at: NSPoint(x: cX, y: subY))
 
-        if isManual {
+        if fanMode != .auto {
             let tAttr = NSAttributedString(
                 string: String(format: "目标 %.0f rpm", slider.doubleValue),
                 attributes: [.font: subFont, .foregroundColor: accent.withAlphaComponent(0.8)])
@@ -231,8 +254,12 @@ final class FanView: NSView {
             return NSPoint(x: x, y: y)
         }
 
-        func modeColor(_ manual: Bool) -> NSColor {
-            manual ? .systemOrange : .systemBlue
+        func modeColor(_ mode: FanMode) -> NSColor {
+            switch mode {
+            case .charging: return .systemYellow
+            case .manual:   return .systemOrange
+            case .auto:     return .systemBlue
+            }
         }
 
         let fullCurve = smoothPath(pts)
@@ -248,9 +275,9 @@ final class FanView: NSView {
 
             var segStart = 0
             while segStart < n {
-                let segMode = samples[segStart].manual
+                let segMode = samples[segStart].mode
                 var segEnd = segStart
-                while segEnd + 1 < n && samples[segEnd + 1].manual == segMode {
+                while segEnd + 1 < n && samples[segEnd + 1].mode == segMode {
                     segEnd += 1
                 }
                 let seg = modeColor(segMode)
@@ -278,9 +305,9 @@ final class FanView: NSView {
         // --- stroke each segment in its color ---
         var segStart = 0
         while segStart < n {
-            let segMode = samples[segStart].manual
+            let segMode = samples[segStart].mode
             var segEnd = segStart
-            while segEnd + 1 < n && samples[segEnd + 1].manual == segMode {
+            while segEnd + 1 < n && samples[segEnd + 1].mode == segMode {
                 segEnd += 1
             }
             if segEnd > segStart {
@@ -296,12 +323,12 @@ final class FanView: NSView {
         }
 
         // --- cross-fade overlay at mode transitions ---
-        for i in 1..<n where samples[i].manual != samples[i - 1].manual {
+        for i in 1..<n where samples[i].mode != samples[i - 1].mode {
             let blendL = max(0, i - 2)
             let blendR = min(n - 1, i + 1)
             guard blendR > blendL else { continue }
-            let fromColor = modeColor(samples[i - 1].manual)
-            let toColor   = modeColor(samples[i].manual)
+            let fromColor = modeColor(samples[i - 1].mode)
+            let toColor   = modeColor(samples[i].mode)
             let bPts = Array(pts[blendL...blendR])
             let steps = max(6, bPts.count * 4)
             for s in 0..<steps {

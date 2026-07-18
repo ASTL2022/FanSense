@@ -77,7 +77,7 @@ static int read_key(const char *key, SMCKeyData_keyInfo_t *ki, SMCBytes_t bytes)
     memset(&out, 0, sizeof(out));
     in.key  = key_to_u32(key);
     in.data8 = SMC_CMD_READ_KEYINFO;
-    if (smc_call(&in, &out) != 0) return -1;
+    if (smc_call(&in, &out) != 0 || out.result != 0) return -1;
 
     *ki = out.keyInfo;
 
@@ -86,7 +86,7 @@ static int read_key(const char *key, SMCKeyData_keyInfo_t *ki, SMCBytes_t bytes)
     in.key  = key_to_u32(key);
     in.keyInfo.dataSize = ki->dataSize;
     in.data8 = SMC_CMD_READ_BYTES;
-    if (smc_call(&in, &out) != 0) return -1;
+    if (smc_call(&in, &out) != 0 || out.result != 0) return -1;
 
     memcpy(bytes, out.bytes, sizeof(SMCBytes_t));
     return 0;
@@ -120,8 +120,13 @@ int smc_read_float(const char *key, float *out) {
     } else if (type == key_to_u32("fp2e")) {
         int v = ((unsigned char)b[0] << 8) | (unsigned char)b[1];
         *out = (float)v / 16384.0f;
-    } else {
+    } else if (type == key_to_u32("sp78")) {
+        int16_t v = (int16_t)(((unsigned char)b[0] << 8) | (unsigned char)b[1]);
+        *out = (float)v / 256.0f;
+    } else if (ki.dataSize == 4) {
         memcpy(out, b, 4);
+    } else {
+        return -1;
     }
     return 0;
 }

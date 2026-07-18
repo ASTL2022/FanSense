@@ -37,7 +37,7 @@ cp fanhelper "$APP/Contents/Resources/fanhelper"
 cp -r fan_frames "$APP/Contents/Resources/fan_frames"
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
-cat > "$APP/Contents/Info.plist" <<'PLIST'
+cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -63,6 +63,8 @@ echo "==> 代码签名..."
 codesign --force --deep --sign - "$APP"
 
 echo "==> 打包 DMG (FanSense-${VERSION}.dmg) ..."
+for v in /Volumes/FanSense*; do hdiutil detach "$v" 2>/dev/null || true; done
+sleep 1
 DMG_TMP="/tmp/fansense-build"
 rm -rf "$DMG_TMP"
 mkdir -p "$DMG_TMP"
