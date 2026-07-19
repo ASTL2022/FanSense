@@ -535,8 +535,8 @@ final class AppController: NSObject, NSApplicationDelegate {
                 let isOnAC = bat?.isOnAC ?? self.lastIsOnAC
                 let isCharging = bat?.isCharging ?? false
                 let batFull = (bat?.percent ?? self.lastBat?.percent ?? 0) >= 1.0
-                // Detect AC↔battery transition — enter 25s smoothing window
-                if let bat, bat.isOnAC != self.lastIsOnAC {
+                // Detect AC→battery unplug transition: 25s smoothing window
+                if let bat, self.lastIsOnAC && !bat.isOnAC {
                     self.powerTransitionUntil = Date().addingTimeInterval(25)
                 }
                 let inPowerTransition = self.powerTransitionUntil.map { Date() < $0 } ?? false
@@ -617,8 +617,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
                 if let bat = self.lastBat {
                     if inPowerTransition {
-                        let emoji = powerMode == 0 ? "🔋" : "⚡"
-                        self.batteryBarView.timeLine = "\(emoji) 功率计算中…"
+                        self.batteryBarView.timeLine = "⚡ 正在计算续航…"
                         self.batteryBarView.isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
                         self.efficiencyView.isOnBattery = (powerMode == 0)
                     } else {
