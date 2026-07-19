@@ -60,7 +60,72 @@
 
 ---
 
-## v1.2.1 审查修复（2026-07-18）
+## v1.2.2 批量修复（2026-07-18）
+
+以下为 APPLE_DESIGN_PLAN.md + 待修复列表的集中修复：
+
+### BUG-019: 定时器碰撞
+- **严重度**: 严重
+- **文件**: `main.swift:129-132`
+- **问题**: t=60s 时 `dataTimer` 和 `bgSampleTimer` 同时触发并发 SMC 访问。
+- **修复**: bgSampleTimer 改用 `Timer(fire:)` 偏移 3 秒启动。
+- **状态**: ✅ 已修复
+
+### BUG-020: runHelper() 吞掉所有错误
+- **严重度**: 严重
+- **文件**: `DataSources.swift:33-47`
+- **问题**: helper 退出码非零时无日志，静默返回空字符串，问题无法排查。
+- **修复**: 捕获 stderr，检查 `terminationStatus`，非零时 NSLog 输出退出码和 stderr。
+- **状态**: ✅ 已修复
+
+### BUG-021: smoothPath/interpolate 在 FanView 和 ChargeChartView 中重复
+- **严重度**: 高
+- **文件**: `FanView.swift`, `ChargeChartView.swift`, `DataSources.swift`
+- **问题**: 两个文件中各有完全一致的 `smoothPath` 和 `interpolate` 实现，~40 行重复代码。
+- **修复**: 提取为全局函数 `smoothChartPath()` / `interpolatePath()` 放入 `DataSources.swift`，两处调用改为引用公共函数。
+- **状态**: ✅ 已修复
+
+### BUG-022: readNetwork 只取最大单接口
+- **严重度**: 中
+- **文件**: `DataSources.swift:211-248`
+- **问题**: 原逻辑 `best = max(rx+tx)` 只取流量最大的接口，多网卡（en0+utun）时遗漏合计。
+- **修复**: 改为遍历所有 en/utun 接口，求和 `totalRx` / `totalTx`。
+- **状态**: ✅ 已修复
+
+### BUG-023: readDisk 降级路径数值口径不一致
+- **严重度**: 中
+- **文件**: `DataSources.swift:281-301`
+- **问题**: `importantUsage` 口径与 `freeSize` 口径数值不同，降级时静默切换导致显示跳动。
+- **修复**: 移除 `freeSize` 降级路径，仅使用 `importantUsage`（与系统设置一致）。
+- **状态**: ✅ 已修复
+
+### BUG-024: updateIconHot 可能显示过期温度
+- **严重度**: 中
+- **文件**: `main.swift:73, 450, 547`
+- **问题**: bgSample 每 60s 刷新温度，若 helper 失败，`iconModel.hot` 保留上次值永久显示。
+- **修复**: 新增 `lastSensorTime` 时间戳，`updateIconHot` 检查数据是否在 65s 内。
+- **状态**: ✅ 已修复
+
+### BUG-025: README.md macOS 版本要求不一致
+- **严重度**: 低
+- **文件**: `README.md:39`
+- **问题**: 正文写 "macOS 15+ (glass panel effects require macOS 26+)" — 26+ 不存在，与 Info.plist 的 15.0 矛盾。
+- **修复**: 改为 "macOS 15.0+"。
+- **状态**: ✅ 已修复
+
+### Apple Design #5: 面板进场动画
+- **文件**: `main.swift:241-271`
+- **问题**: 面板凭空出现，无来源锚点。
+- **修复**: 从 statusItem 按钮位置 scale+opacity 0→1 动画进场，200ms easeOut。
+- **状态**: ✅ 已修复
+
+### Apple Design #6: 面板退场动画
+- **文件**: `main.swift:273-290`
+- **问题**: 面板瞬间消失。
+- **修复**: opacity+位移动画退回到按钮位置，150ms easeIn，完成后 orderOut。
+- **状态**: ✅ 已修复
+
+---
 
 以下问题在本次代码审查中发现并已修复：
 

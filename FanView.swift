@@ -264,7 +264,7 @@ final class FanView: NSView {
             }
         }
 
-        let fullCurve = smoothPath(pts)
+        let fullCurve = smoothChartPath(pts)
 
         // --- fill in color segments ---
         if let ctx = NSGraphicsContext.current?.cgContext {
@@ -314,7 +314,7 @@ final class FanView: NSView {
             }
             if segEnd > segStart {
                 let segPts = Array(pts[segStart...segEnd])
-                let curve = smoothPath(segPts)
+                let curve = smoothChartPath(segPts)
                 curve.lineWidth = 1.5
                 curve.lineCapStyle  = .round
                 curve.lineJoinStyle = .round
@@ -337,8 +337,8 @@ final class FanView: NSView {
                 let t0 = Double(s)     / Double(steps)
                 let t1 = Double(s + 1) / Double(steps)
                 let tm = (t0 + t1) / 2
-                let p0 = interpolate(bPts, t: t0)
-                let p1 = interpolate(bPts, t: t1)
+                let p0 = interpolatePath(bPts, t: t0)
+                let p1 = interpolatePath(bPts, t: t1)
                 let c  = fromColor.blended(withFraction: CGFloat(tm), of: toColor) ?? fromColor
                 let seg = NSBezierPath()
                 seg.move(to: p0)
@@ -360,34 +360,6 @@ final class FanView: NSView {
 
     private func rpmLabel(_ v: Double) -> String {
         v >= 1000 ? String(format: "%.1fk", v / 1000) : String(format: "%.0f", v)
-    }
-
-    private func interpolate(_ pts: [NSPoint], t: Double) -> NSPoint {
-        guard pts.count > 1 else { return pts[0] }
-        let scaled = t * Double(pts.count - 1)
-        let lo = min(Int(scaled), pts.count - 2)
-        let frac = scaled - Double(lo)
-        let a = pts[lo], b = pts[lo + 1]
-        return NSPoint(x: a.x + CGFloat(frac) * (b.x - a.x),
-                       y: a.y + CGFloat(frac) * (b.y - a.y))
-    }
-
-    private func smoothPath(_ pts: [NSPoint]) -> NSBezierPath {
-        let path = NSBezierPath()
-        path.move(to: pts[0])
-        guard pts.count > 1 else { return path }
-        for i in 1..<pts.count {
-            let p0 = pts[max(i - 2, 0)]
-            let p1 = pts[i - 1]
-            let p2 = pts[i]
-            let p3 = pts[min(i + 1, pts.count - 1)]
-            let cp1 = NSPoint(x: p1.x + (p2.x - p0.x) / 6,
-                              y: p1.y + (p2.y - p0.y) / 6)
-            let cp2 = NSPoint(x: p2.x - (p3.x - p1.x) / 6,
-                              y: p2.y - (p3.y - p1.y) / 6)
-            path.curve(to: p2, controlPoint1: cp1, controlPoint2: cp2)
-        }
-        return path
     }
 
     private func niceMax(_ v: Double) -> Double {

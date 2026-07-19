@@ -70,6 +70,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     var lastIsOnAC: Bool = true
     var lastBat: BatteryInfo? = nil
     var lastSensorData: SensorData = SensorData()
+    var lastSensorTime: Date? = nil
     var powerSamples: [Double] = []
     var lastNotifyTime: Date? = nil
 
@@ -126,9 +127,11 @@ final class AppController: NSObject, NSApplicationDelegate {
                 self.refresh(slow: self.tickCount % 30 == 0)
             }
         }
-        bgSampleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        let t = Timer(fire: Date().addingTimeInterval(3), interval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.bgSample() }
         }
+        RunLoop.main.add(t, forMode: .common)
+        bgSampleTimer = t
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
@@ -243,10 +246,13 @@ final class AppController: NSObject, NSApplicationDelegate {
               let screen = btn.window?.screen ?? NSScreen.main else { return }
 
         let btnRect = btn.window!.convertToScreen(btn.frame)
-        let x = min(btnRect.midX - W / 2, screen.visibleFrame.maxX - W)
-        let y = btnRect.minY - p.frame.height - 2
+        let finalX = min(btnRect.midX - W / 2, screen.visibleFrame.maxX - W)
+        let finalY = btnRect.minY - p.frame.height - 2
+        let finalOrigin = NSPoint(x: max(finalX, screen.visibleFrame.minX), y: finalY)
 
-        p.setFrameOrigin(NSPoint(x: max(x, screen.visibleFrame.minX), y: y))
+        let startOrigin = NSPoint(x: btnRect.midX - p.frame.width / 2, y: btnRect.minY - 4)
+        p.setFrameOrigin(startOrigin)
+        p.alphaValue = 0
         p.makeKeyAndOrderFront(nil)
 
         isPanelVisible = true
@@ -254,16 +260,36 @@ final class AppController: NSObject, NSApplicationDelegate {
 
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self else { return }
-            DispatchQueue.main.async {
-                    self.hidePanel()
-            }
+            DispatchQueue.main.async { self.hidePanel() }
+        }
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.2
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            p.animator().setFrameOrigin(finalOrigin)
+            p.animator().alphaValue = 1
         }
     }
 
     func hidePanel() {
-        panel?.orderOut(nil)
+        guard let p = panel, isPanelVisible else { return }
         isPanelVisible = false
         if let m = clickMonitor { NSEvent.removeMonitor(m); clickMonitor = nil }
+
+        guard let btn = statusItem.button else { p.orderOut(nil); return }
+        let btnRect = btn.window!.convertToScreen(btn.frame)
+        let targetOrigin = NSPoint(x: btnRect.midX - p.frame.width / 2, y: btnRect.minY - 4)
+
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.15
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            p.animator().setFrameOrigin(targetOrigin)
+            p.animator().alphaValue = 0
+        }, completionHandler: {
+            DispatchQueue.main.async { [weak self] in
+                self?.panel?.orderOut(nil)
+            }
+        })
     }
 
     @objc func togglePanel() {
@@ -450,6 +476,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.lastSensorData = s
+                self.lastSensorTime = Date()
                 let w = s.pstr > 0 ? s.pstr : 0
                 self.powerSamples.append(w)
                 if self.powerSamples.count > 5 { self.powerSamples.removeFirst() }
@@ -612,7 +639,8 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     func updateIconHot(cpu: Double, gpu: Double) {
-        withAnimation { iconModel.hot = max(cpu, gpu) >= 80 }
+        let fresh = lastSensorTime.map { Date().timeIntervalSince($0) < 65 } ?? false
+        withAnimation { iconModel.hot = fresh && max(cpu, gpu) >= 80 }
     }
 }
 

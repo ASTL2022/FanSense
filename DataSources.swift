@@ -2,6 +2,7 @@
 // Copyright (C) 2026 dr.t @ MarsCandyBox
 
 import Foundation
+import AppKit
 import IOKit
 import IOKit.ps
 import Darwin
@@ -27,6 +28,36 @@ struct SensorData {
     var pdtr: Double = 0          // DC In Total Rail  — adapter input, ~0 on battery
 }
 
+// MARK: - Shared Chart Helpers
+
+func smoothChartPath(_ pts: [NSPoint]) -> NSBezierPath {
+    let path = NSBezierPath()
+    path.move(to: pts[0])
+    guard pts.count > 1 else { return path }
+    for i in 1..<pts.count {
+        let p0 = pts[max(i - 2, 0)]
+        let p1 = pts[i - 1]
+        let p2 = pts[i]
+        let p3 = pts[min(i + 1, pts.count - 1)]
+        let cp1 = NSPoint(x: p1.x + (p2.x - p0.x) / 6,
+                          y: p1.y + (p2.y - p0.y) / 6)
+        let cp2 = NSPoint(x: p2.x - (p3.x - p1.x) / 6,
+                          y: p2.y - (p3.y - p1.y) / 6)
+        path.curve(to: p2, controlPoint1: cp1, controlPoint2: cp2)
+    }
+    return path
+}
+
+func interpolatePath(_ pts: [NSPoint], t: Double) -> NSPoint {
+    guard pts.count > 1 else { return pts[0] }
+    let scaled = t * Double(pts.count - 1)
+    let lo = min(Int(scaled), pts.count - 2)
+    let frac = scaled - Double(lo)
+    let a = pts[lo], b = pts[lo + 1]
+    return NSPoint(x: a.x + CGFloat(frac) * (b.x - a.x),
+                   y: a.y + CGFloat(frac) * (b.y - a.y))
+}
+
 // MARK: - Helper Process
 
 @discardableResult
@@ -34,11 +65,17 @@ func runHelper(_ args: [String]) -> String {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: HELPER)
     p.arguments = args
-    let pipe = Pipe()
-    p.standardOutput = pipe
-    p.standardError = Pipe()
+    let outPipe = Pipe()
+    let errPipe = Pipe()
+    p.standardOutput = outPipe
+    p.standardError = errPipe
     do { try p.run(); p.waitUntilExit() } catch { return "" }
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    if p.terminationStatus != 0 {
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        let errStr = String(data: errData, encoding: .utf8) ?? ""
+        NSLog("FanSense: fanhelper \(args.joined(separator: " ")) exit=\(p.terminationStatus)\(errStr.isEmpty ? "" : " err=\(errStr)")")
+    }
+    let data = outPipe.fileHandleForReading.readDataToEndOfFile()
     return String(data: data, encoding: .utf8) ?? ""
 }
 
@@ -214,7 +251,8 @@ func readNetwork(interface: String = "", prevBytes: inout (rx: UInt64, tx: UInt6
     guard getifaddrs(&ifap) == 0, let first = ifap else { return info }
     defer { freeifaddrs(first) }
 
-    var best: (name: String, rx: UInt64, tx: UInt64) = ("", 0, 0)
+    var totalRx: UInt64 = 0
+    var totalTx: UInt64 = 0
     var ptr = first
     while true {
         let name = String(cString: ptr.pointee.ifa_name)
@@ -225,25 +263,20 @@ func readNetwork(interface: String = "", prevBytes: inout (rx: UInt64, tx: UInt6
            ptr.pointee.ifa_addr.pointee.sa_family == UInt8(AF_LINK),
            let dataPtr = ptr.pointee.ifa_data {
             let data = dataPtr.bindMemory(to: if_data.self, capacity: 1)
-            let rx = UInt64(data.pointee.ifi_ibytes)
-            let tx = UInt64(data.pointee.ifi_obytes)
-            if rx + tx > best.rx + best.tx {
-                best = (name, rx, tx)
-            }
+            totalRx += UInt64(data.pointee.ifi_ibytes)
+            totalTx += UInt64(data.pointee.ifi_obytes)
         }
         guard let next = ptr.pointee.ifa_next else { break }
         ptr = next
     }
 
-    let rx = best.rx
-    let tx = best.tx
     let now = CACurrentMediaTime()
     let dt  = now - prevBytes.time
-    if prevBytes.time > 0 && dt > 0 && rx >= prevBytes.rx && tx >= prevBytes.tx {
-        info.rxBytesPerSec = Double(rx - prevBytes.rx) / dt
-        info.txBytesPerSec = Double(tx - prevBytes.tx) / dt
+    if prevBytes.time > 0 && dt > 0 && totalRx >= prevBytes.rx && totalTx >= prevBytes.tx {
+        info.rxBytesPerSec = Double(totalRx - prevBytes.rx) / dt
+        info.txBytesPerSec = Double(totalTx - prevBytes.tx) / dt
     }
-    prevBytes = (rx, tx, now)
+    prevBytes = (totalRx, totalTx, now)
     return info
 }
 
@@ -280,23 +313,14 @@ struct DiskInfo {
 
 func readDisk(path: String = "/") -> DiskInfo {
     var info = DiskInfo()
-    // importantUsage 口径包含可清除空间（快照/缓存），与系统设置显示一致
     let url = URL(fileURLWithPath: path)
-    if let v = try? url.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]),
-       let total = v.volumeTotalCapacity, total > 0,
-       let avail = v.volumeAvailableCapacityForImportantUsage, avail > 0 {
-        info.totalGB = Double(total) / 1e9
-        info.usedGB  = Double(Int64(total) - avail) / 1e9
-        info.percent = info.usedGB / info.totalGB
-        return info
-    }
-    guard let attrs = try? FileManager.default.attributesOfFileSystem(forPath: path),
-          let total = attrs[.systemSize]         as? Int64,
-          let free  = attrs[.systemFreeSize]     as? Int64
+    guard let v = try? url.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]),
+          let total = v.volumeTotalCapacity, total > 0,
+          let avail = v.volumeAvailableCapacityForImportantUsage, avail > 0
     else { return info }
     info.totalGB = Double(total) / 1e9
-    info.usedGB  = Double(total - free) / 1e9
-    info.percent = info.totalGB > 0 ? info.usedGB / info.totalGB : 0
+    info.usedGB  = Double(Int64(total) - avail) / 1e9
+    info.percent = info.usedGB / info.totalGB
     return info
 }
 

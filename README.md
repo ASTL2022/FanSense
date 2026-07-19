@@ -36,7 +36,7 @@ A menu bar fan control and system monitor for Apple Silicon Macs. Shows temperat
 
 ## Requirements
 
-- **OS**: macOS 15+ (glass panel effects require macOS 26+)
+- **OS**: macOS 15.0+
 - **Processor**: Apple Silicon
 - **Permissions**: root is required once to install the `fanhelper` binary (fan speed writes go through SMC)
 
