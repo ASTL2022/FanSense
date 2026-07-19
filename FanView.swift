@@ -187,7 +187,7 @@ final class FanView: NSView {
         if fanMode != .auto {
             let tAttr = NSAttributedString(
                 string: String(format: "目标 %.0f rpm", targetRPM),
-                attributes: [.font: subFont, .foregroundColor: accent.withAlphaComponent(0.8)])
+                attributes: [.font: subFont, .foregroundColor: accent.withAlphaComponent(0.7)])
             tAttr.draw(at: NSPoint(x: rightEdge - tAttr.size().width, y: subY))
         }
 

@@ -22,12 +22,14 @@ final class IconModel: ObservableObject {
 
 struct StatusIconView: View {
     @ObservedObject var model: IconModel
+    private let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     var body: some View {
-        Image(systemName: model.hot ? "flame.fill" : "fan.fill")
+        Image(systemName: model.hot ? "flame.fill" : (reduceMotion ? "fan" : "fan.fill"))
             .font(.system(size: 13, weight: .medium))
-            .symbolEffect(.rotate.byLayer, options: .repeat(.continuous), isActive: model.spinning && !model.hot)
+            .symbolEffect(.rotate.byLayer, options: .repeat(.continuous), isActive: model.spinning && !model.hot && !reduceMotion)
             .contentTransition(.symbolEffect(.replace))
             .foregroundStyle(model.hot ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
+            .opacity(reduceMotion && model.spinning ? 0.6 : 1.0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(false)
     }
@@ -180,6 +182,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     @objc func toggleChargingMode() {
         guard helperOK else { return }
+        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .default)
         if fanMode == .charging {
             // 已开启 → 恢复自动
             restoreAutoMode()
@@ -215,6 +218,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     /// 恢复系统自动控制（滑块拉到最左 / 关闭充电模式 / 拔电自动退出共用）。
     func restoreAutoMode() {
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
         setGeneration += 1
         let gen = setGeneration
         fanMode = .auto
@@ -292,13 +296,15 @@ final class AppController: NSObject, NSApplicationDelegate {
         fanView.onSliderChange = { [weak self] rpm in
             guard let self else { return }
             self.sliderDebounce?.invalidate()
-            self.sliderDebounce = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
+            self.sliderDebounce = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
                 Task { @MainActor in
                     guard let self else { return }
                     guard self.helperOK else { self.fanView.pendingChange = false; return }
                     if rpm <= self.fanView.minRPM + 1 {
+                        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
                         self.restoreAutoMode()
                     } else {
+                        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .default)
                         self.setGeneration += 1
                         let gen = self.setGeneration
                         self.fanMode = .manual
