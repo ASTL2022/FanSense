@@ -69,7 +69,20 @@ func runHelper(_ args: [String]) -> String {
     let errPipe = Pipe()
     p.standardOutput = outPipe
     p.standardError = errPipe
-    do { try p.run(); p.waitUntilExit() } catch { return "" }
+    do {
+        try p.run()
+        let deadline = DispatchTime.now() + .seconds(5)
+        DispatchQueue.global().asyncAfter(deadline: deadline) {
+            if p.isRunning {
+                p.terminate()
+                NSLog("FanSense: fanhelper \(args.joined(separator: " ")) timed out after 5s")
+            }
+        }
+        p.waitUntilExit()
+    } catch {
+        NSLog("FanSense: fanhelper launch failed: \(error.localizedDescription)")
+        return ""
+    }
     if p.terminationStatus != 0 {
         let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
         let errStr = String(data: errData, encoding: .utf8) ?? ""

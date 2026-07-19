@@ -45,6 +45,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     var bgSampleTimer: Timer?
     var setGeneration = 0
     var writeInFlight = 0
+    var refreshInFlight = false
 
     var avgRPM: Double = 0
     var fanMode: FanMode = .auto
@@ -119,12 +120,14 @@ final class AppController: NSObject, NSApplicationDelegate {
         checkHelper()
         ensureHelper()
         readSmartOnce()
-        refresh(slow: true)
+        refresh(slow: true, force: true)
         dataTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
                 self.tickCount += 1
                 self.refresh(slow: self.tickCount % 30 == 0)
+                // Periodic helper health check every 60 ticks
+                if self.tickCount % 60 == 0 { self.checkHelper() }
             }
         }
         let t = Timer(fire: Date().addingTimeInterval(3), interval: 60, repeats: true) { [weak self] _ in
@@ -137,7 +140,14 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         guard helperOK else { return }
-        runHelper(["auto"])
+        // Best-effort auto restore; don't block termination
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: HELPER)
+        p.arguments = ["auto"]
+        p.standardOutput = Pipe()
+        p.standardError = Pipe()
+        try? p.run()
+        p.waitUntilExit()   // auto is fast (< 50 ms); 5s implicit kernel timeout
     }
 
     // MARK: - Status Item
@@ -216,7 +226,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 guard gen == self.setGeneration else { return }
                 if !confirmed { NSLog("FanSense: charging set %d rpm failed after retries", target) }
                 self.fanView.pendingChange = false
-                self.refresh()
+                self.refresh(force: true)
             }
         }
     }
@@ -234,7 +244,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.writeInFlight -= 1
-                if gen == self.setGeneration { self.refresh() }
+                if gen == self.setGeneration { self.refresh(force: true) }
             }
         }
     }
@@ -253,7 +263,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         p.makeKeyAndOrderFront(nil)
 
         isPanelVisible = true
-        refresh(slow: true)
+        refresh(slow: true, force: true)
 
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self else { return }
@@ -329,7 +339,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                                 guard gen == self.setGeneration else { return }
                                 if !confirmed { NSLog("FanSense: set %d rpm failed after retries", target) }
                                 self.fanView.pendingChange = false
-                                self.refresh()
+                                self.refresh(force: true)
                             }
                         }
                     }
@@ -496,7 +506,9 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     // MARK: - Data Refresh
 
-    func refresh(slow: Bool = false) {
+    func refresh(slow: Bool = false, force: Bool = false) {
+        guard force || !refreshInFlight else { return }
+        refreshInFlight = true
         let cpuInfo = readCPU(prevTicks: &prevCPUTicks)
         let netInfo = readNetwork(prevBytes: &prevNetBytes)
 
@@ -515,6 +527,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
             await MainActor.run { [weak self] in
                 guard let self else { return }
+                defer { self.refreshInFlight = false }
                 let isOnAC = bat?.isOnAC ?? self.lastIsOnAC
                 let isCharging = bat?.isCharging ?? false
                 let batFull = (bat?.percent ?? self.lastBat?.percent ?? 0) >= 1.0
