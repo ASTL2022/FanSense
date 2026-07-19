@@ -141,6 +141,8 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func setupIcon() {
         guard let btn = statusItem.button else { return }
+        let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        btn.toolTip = "FanSense \(ver)"
         let host = NSHostingView(rootView: StatusIconView(model: iconModel))
         host.frame = btn.bounds
         host.autoresizingMask = [.width, .height]
