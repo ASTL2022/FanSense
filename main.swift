@@ -69,6 +69,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     var helperOK = false
     var smartInfo: SmartInfo?
     var lastIsOnAC: Bool = true
+    var powerTransitionUntil: Date? = nil
     var lastBat: BatteryInfo? = nil
     var lastSensorData: SensorData = SensorData()
     var lastSensorTime: Date? = nil
@@ -464,16 +465,19 @@ final class AppController: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.lastSensorData = s
                 self.lastSensorTime = Date()
+                let inTransition = self.powerTransitionUntil.map { Date() < $0 } ?? false
                 let w = s.pstr > 0 ? s.pstr : 0
-                self.powerSamples.append(w)
-                if self.powerSamples.count > 5 { self.powerSamples.removeFirst() }
+                if !inTransition {
+                    self.powerSamples.append(w)
+                    if self.powerSamples.count > 5 { self.powerSamples.removeFirst() }
+                }
                 let avg = self.powerSamples.isEmpty ? 0.0 : self.powerSamples.reduce(0, +) / Double(self.powerSamples.count)
                 self.efficiencyView.avgWatts = avg
                 self.efficiencyView.timeToEmpty = effectiveTimeToEmpty(bat: self.lastBat, sensors: s)
                 self.efficiencyView.isOnBattery = !self.lastIsOnAC
                 self.efficiencyView.display()
                 self.updateIconHot(cpu: s.cpuTemp, gpu: s.gpuTemp)
-                self.checkPowerAlert()
+                if !inTransition { self.checkPowerAlert() }
             }
         }
     }
@@ -531,12 +535,19 @@ final class AppController: NSObject, NSApplicationDelegate {
                 let isOnAC = bat?.isOnAC ?? self.lastIsOnAC
                 let isCharging = bat?.isCharging ?? false
                 let batFull = (bat?.percent ?? self.lastBat?.percent ?? 0) >= 1.0
+                // Detect AC↔battery transition — enter 25s smoothing window
+                if let bat, bat.isOnAC != self.lastIsOnAC {
+                    self.powerTransitionUntil = Date().addingTimeInterval(25)
+                }
+                let inPowerTransition = self.powerTransitionUntil.map { Date() < $0 } ?? false
                 let powerMode: Int = isOnAC ? ((isCharging || !batFull) ? 1 : 2) : 0
                 let systemPowerW: Double = isOnAC ? (sensors.pdtr > 0 ? sensors.pdtr : sensors.pstr) : sensors.pstr
 
                 if self.isPanelVisible {
                     self.batteryBarView.powerMode = powerMode
-                    self.batteryBarView.pushSample(watts: systemPowerW)
+                    if !inPowerTransition {
+                        self.batteryBarView.pushSample(watts: systemPowerW)
+                    }
                 }
                 var smcManual = false
                 if !fans.isEmpty {
@@ -605,16 +616,23 @@ final class AppController: NSObject, NSApplicationDelegate {
                 } else if let cached = self.lastBat { self.batteryBarView.isHidden = !cached.hasBattery }
 
                 if let bat = self.lastBat {
-                    let wattsStr = String(format: "%.1fW", systemPowerW)
-                    self.batteryBarView.isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
-                    self.efficiencyView.isOnBattery = (powerMode == 0)
-                    if powerMode == 1 { self.batteryBarView.timeLine = wattsStr }
-                    else if powerMode == 0 {
-                        let tte = bat.timeToEmpty > 0 ? bat.timeToEmpty : estimateTimeToEmpty(from: sensors)
-                        self.batteryBarView.timeLine = tte > 0 ? "剩余续航 \(tte / 60)小时\(tte % 60)分  ·  \(wattsStr)" : wattsStr
+                    if inPowerTransition {
+                        let emoji = powerMode == 0 ? "🔋" : "⚡"
+                        self.batteryBarView.timeLine = "\(emoji) 功率计算中…"
+                        self.batteryBarView.isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+                        self.efficiencyView.isOnBattery = (powerMode == 0)
                     } else {
-                        let t = sensors.batteryTemp > 0 ? String(format: "  ·  %.1f°C", sensors.batteryTemp) : ""
-                        self.batteryBarView.timeLine = bat.healthPercent > 0 ? String(format: "健康 %.0f%%  ·  %d 次循环%@", bat.healthPercent * 100, bat.cycleCount, t) : ""
+                        let wattsStr = String(format: "%.1fW", systemPowerW)
+                        self.batteryBarView.isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+                        self.efficiencyView.isOnBattery = (powerMode == 0)
+                        if powerMode == 1 { self.batteryBarView.timeLine = wattsStr }
+                        else if powerMode == 0 {
+                            let tte = bat.timeToEmpty > 0 ? bat.timeToEmpty : estimateTimeToEmpty(from: sensors)
+                            self.batteryBarView.timeLine = tte > 0 ? "剩余续航 \(tte / 60)小时\(tte % 60)分  ·  \(wattsStr)" : wattsStr
+                        } else {
+                            let t = sensors.batteryTemp > 0 ? String(format: "  ·  %.1f°C", sensors.batteryTemp) : ""
+                            self.batteryBarView.timeLine = bat.healthPercent > 0 ? String(format: "健康 %.0f%%  ·  %d 次循环%@", bat.healthPercent * 100, bat.cycleCount, t) : ""
+                        }
                     }
                     self.batteryBarView.display()
                 }
