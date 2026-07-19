@@ -250,7 +250,6 @@ final class AppController: NSObject, NSApplicationDelegate {
         let y = btnRect.minY - p.frame.height - 2
 
         p.setFrameOrigin(NSPoint(x: max(x, screen.visibleFrame.minX), y: y))
-        p.alphaValue = 0
         p.makeKeyAndOrderFront(nil)
 
         isPanelVisible = true
@@ -258,25 +257,16 @@ final class AppController: NSObject, NSApplicationDelegate {
 
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self else { return }
-            DispatchQueue.main.async { self.hidePanel() }
+            DispatchQueue.main.async {
+                    self.hidePanel()
+            }
         }
-
-        p.animator().alphaValue = 1
     }
 
     func hidePanel() {
-        guard let p = panel, isPanelVisible else { return }
+        panel?.orderOut(nil)
         isPanelVisible = false
         if let m = clickMonitor { NSEvent.removeMonitor(m); clickMonitor = nil }
-
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.15
-            p.animator().alphaValue = 0
-        }, completionHandler: {
-            DispatchQueue.main.async { [weak self] in
-                self?.panel?.orderOut(nil)
-            }
-        })
     }
 
     @objc func togglePanel() {
