@@ -30,3 +30,4 @@ probe_ioreport
 *.swo
 *~
 .~lock.*
+.agents/
