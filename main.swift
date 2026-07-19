@@ -246,12 +246,10 @@ final class AppController: NSObject, NSApplicationDelegate {
               let screen = btn.window?.screen ?? NSScreen.main else { return }
 
         let btnRect = btn.window!.convertToScreen(btn.frame)
-        let finalX = min(btnRect.midX - W / 2, screen.visibleFrame.maxX - W)
-        let finalY = btnRect.minY - p.frame.height - 2
-        let finalOrigin = NSPoint(x: max(finalX, screen.visibleFrame.minX), y: finalY)
+        let x = min(btnRect.midX - W / 2, screen.visibleFrame.maxX - W)
+        let y = btnRect.minY - p.frame.height - 2
 
-        let startOrigin = NSPoint(x: btnRect.midX - p.frame.width / 2, y: btnRect.minY - 4)
-        p.setFrameOrigin(startOrigin)
+        p.setFrameOrigin(NSPoint(x: max(x, screen.visibleFrame.minX), y: y))
         p.alphaValue = 0
         p.makeKeyAndOrderFront(nil)
 
@@ -263,12 +261,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async { self.hidePanel() }
         }
 
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.2
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            p.animator().setFrameOrigin(finalOrigin)
-            p.animator().alphaValue = 1
-        }
+        p.animator().alphaValue = 1
     }
 
     func hidePanel() {
@@ -276,14 +269,8 @@ final class AppController: NSObject, NSApplicationDelegate {
         isPanelVisible = false
         if let m = clickMonitor { NSEvent.removeMonitor(m); clickMonitor = nil }
 
-        guard let btn = statusItem.button else { p.orderOut(nil); return }
-        let btnRect = btn.window!.convertToScreen(btn.frame)
-        let targetOrigin = NSPoint(x: btnRect.midX - p.frame.width / 2, y: btnRect.minY - 4)
-
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.15
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            p.animator().setFrameOrigin(targetOrigin)
             p.animator().alphaValue = 0
         }, completionHandler: {
             DispatchQueue.main.async { [weak self] in
