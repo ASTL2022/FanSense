@@ -37,7 +37,7 @@ final class ChargeChartView: NSView {
         let leftPad: CGFloat  = 22    // Y 轴标签空间
         let rightPad: CGFloat = 4
         let topPad: CGFloat   = 10
-        let botPad: CGFloat   = 20
+        let botPad: CGFloat   = 16
 
         let plotW = bounds.width - leftPad - rightPad
         let plotH = bounds.height - topPad - botPad

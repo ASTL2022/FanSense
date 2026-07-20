@@ -363,3 +363,4 @@ card高度 = vPad(8) + 各视图高度之和 + vPad(8)
 6. **进度条**：轨道 TR=2.5，圆角 CR=1.25，填充色用语义色 `.withAlphaComponent(0.7)`，轨道色 `separatorColor.withAlphaComponent(0.25)`，`barY = TR + 4`。
 7. **不用 Auto Layout / NSStackView**：全部手动 frame，坐标原点在左下角。
 8. **隐藏逻辑**：条件性显示的视图用 `isHidden`，高度不变（`makeCard` 高度已固定）。
+ 

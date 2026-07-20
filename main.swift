@@ -182,13 +182,6 @@ final class AppController: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.autoenablesItems = false
 
-        let chargingItem = NSMenuItem(title: "充电模式", action: #selector(toggleChargingMode), keyEquivalent: "")
-        chargingItem.target = self
-        chargingItem.state = fanMode == .charging ? .on : .off
-        menu.addItem(chargingItem)
-
-        menu.addItem(.separator())
-
         let quitItem = NSMenuItem(title: "退出", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
@@ -196,43 +189,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.popUp(positioning: nil, at: NSPoint(x: -1, y: -4), in: btn)
     }
 
-    @objc func toggleChargingMode() {
-        guard helperOK else { return }
-        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .default)
-        if fanMode == .charging {
-            // 已开启 → 恢复自动
-            restoreAutoMode()
-            return
-        }
-        // 开启充电模式：风扇拉满（写确认 + 重试，同滑块路径）
-        setGeneration += 1
-        let gen = setGeneration
-        fanMode = .charging
-        fanView.pendingChange = true
-        writeInFlight += 1
-        Task.detached { [weak self] in
-            guard let self else { return }
-            let fans = parseFans(runHelper(["read"]))
-            let target = Int(fans.map(\.max).max() ?? 4700)
-            var confirmed = false
-            for attempt in 0..<3 {
-                guard await MainActor.run(body: { self.setGeneration == gen }) else { break }
-                let result = parseFans(runHelper(["set", String(target)]))
-                if result.contains(where: { $0.mode == 1 }) { confirmed = true; break }
-                NSLog("FanSense: charging set %d rpm not confirmed (attempt %d)", target, attempt + 1)
-                try? await Task.sleep(nanoseconds: 500_000_000)
-            }
-            await MainActor.run { [confirmed] in
-                self.writeInFlight -= 1
-                guard gen == self.setGeneration else { return }
-                if !confirmed { NSLog("FanSense: charging set %d rpm failed after retries", target) }
-                self.fanView.pendingChange = false
-                self.refresh(force: true)
-            }
-        }
-    }
-
-    /// 恢复系统自动控制（滑块拉到最左 / 关闭充电模式 / 拔电自动退出共用）。
+    /// 恢复系统自动控制（滑块拉到最左共用）。
     func restoreAutoMode() {
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
         setGeneration += 1
@@ -519,14 +476,14 @@ final class AppController: NSObject, NSApplicationDelegate {
         Task.detached { [weak self, cpuInfo, netInfo] in
             guard let self else { return }
             let memInfo = readMemory()
-            let (isOpen, tick, hasHelper, isChargingMode) = await MainActor.run(body: { (self.isPanelVisible, self.tickCount, self.helperOK, self.fanMode == .charging) })
+            let (isOpen, tick, hasHelper) = await MainActor.run(body: { (self.isPanelVisible, self.tickCount, self.helperOK) })
             let needFans = hasHelper && (isOpen || tick % 10 == 0)
             let output  = (isOpen && hasHelper) ? runHelper(["all"]) : (needFans ? runHelper(["read"]) : "")
             let parts   = output.components(separatedBy: "---\n")
             let fans    = needFans ? parseFans(parts.first ?? "") : []
             let sensors = (isOpen && hasHelper) ? parseSensors(parts.count > 1 ? parts[1] : "") : SensorData()
             let diskInfo = (isOpen && slow) ? readDisk() : nil
-            let bat      = (isOpen || isChargingMode) ? readBatteryPS() : nil
+            let bat      = isOpen ? readBatteryPS() : nil
             let hdr      = (isOpen && slow) ? readSystemHeader() : nil
 
             await MainActor.run { [weak self] in
@@ -545,9 +502,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
                 if self.isPanelVisible {
                     self.batteryBarView.powerMode = powerMode
-                    if !inPowerTransition {
-                        self.batteryBarView.pushSample(watts: systemPowerW)
-                    }
+                    self.batteryBarView.pushSample(watts: systemPowerW)
                 }
                 var smcManual = false
                 if !fans.isEmpty {
@@ -562,11 +517,6 @@ final class AppController: NSObject, NSApplicationDelegate {
                         }
                     }
                     self.updateIconRotation()
-                }
-                // Auto-exit charging mode when AC is lost (bat read happens every tick while charging).
-                if self.fanMode == .charging, let bat {
-                    self.lastIsOnAC = bat.isOnAC
-                    if !bat.isOnAC { self.restoreAutoMode() }
                 }
                 if isOpen { self.updateIconHot(cpu: sensors.cpuTemp, gpu: sensors.gpuTemp) }
                 guard self.isPanelVisible else { return }

@@ -8,7 +8,6 @@ import Cocoa
 enum FanMode {
     case auto
     case manual
-    case charging
 }
 
 // MARK: - Fan View (RPM readout + slider + 60s history chart)
@@ -75,30 +74,17 @@ final class FanView: NSView {
     // MARK: - Data
 
     func update(cur: Double, min: Double, max: Double, target: Double, mode: FanMode, smcManual: Bool) {
-        // While user has a pending slider command, don't let SMC state overwrite local UI.
-        // Clear pendingChange only when SMC confirms the requested mode landed.
         guard !pendingChange else {
             curRPM = cur
-            if smcManual { pendingChange = false }   // set command confirmed
+            if smcManual { pendingChange = false }
             needsDisplay = true
             return
         }
-
         curRPM    = cur
         minRPM    = min
         maxRPM    = max
         targetRPM = target
         fanMode   = mode
-
-        slider.minValue = min
-        slider.maxValue = max
-
-        if fanMode == .auto {
-            setSliderSilently(min)
-        } else {
-            setSliderSilently(Swift.min(Swift.max(cur, min), max))
-        }
-
         needsDisplay = true
     }
 
@@ -106,14 +92,6 @@ final class FanView: NSView {
         samples.append(Sample(rpm: rpm, mode: fanMode))
         if samples.count > windowSize { samples.removeFirst() }
         needsDisplay = true
-    }
-
-    private func setSliderSilently(_ v: Double) {
-        slider.target = nil
-        slider.action = nil
-        slider.doubleValue = v
-        slider.target = self
-        slider.action = #selector(sliderMoved(_:))
     }
 
     @objc private func sliderMoved(_ s: NSSlider) {
@@ -132,7 +110,6 @@ final class FanView: NSView {
         let rightEdge = cX + cW
         let accent: NSColor = {
             switch fanMode {
-            case .charging: return .systemYellow
             case .manual:   return .systemOrange
             case .auto:     return .systemBlue
             }
@@ -159,7 +136,6 @@ final class FanView: NSView {
 
         let modeLabel: String = {
             switch fanMode {
-            case .charging: return "充电"
             case .manual:   return "手动"
             case .auto:     return "自动"
             }
@@ -225,7 +201,7 @@ final class FanView: NSView {
         let originY = chartBottom + botPad
         let plotH = chartTop - topPad - originY
 
-        let scale = max(niceMax(max(samples.map(\.rpm).max() ?? 0, 1500)), 1)
+        let maxRPM: Double = 5000
 
         // grid + y labels
         let gridColor = NSColor.separatorColor.withAlphaComponent(0.25)
@@ -233,10 +209,10 @@ final class FanView: NSView {
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
             .foregroundColor: NSColor.secondaryLabelColor
         ]
-        let tickCount = 4
+        let tickCount = 5
         for t in 0...tickCount {
-            let step = Double(t) / Double(tickCount) * scale
-            let y = originY + CGFloat(step / scale) * plotH
+            let step = Double(t) * 1000
+            let y = originY + CGFloat(step / maxRPM) * plotH
             let path = NSBezierPath()
             path.move(to: NSPoint(x: originX, y: y))
             path.line(to: NSPoint(x: originX + plotW, y: y))
@@ -252,13 +228,12 @@ final class FanView: NSView {
         let pts: [NSPoint] = samples.enumerated().map { i, s in
             let slotFromRight = n - 1 - i
             let x = originX + plotW - CGFloat(slotFromRight) / CGFloat(windowSize - 1) * plotW
-            let y = originY + CGFloat(min(s.rpm, scale) / scale) * plotH
+            let y = originY + CGFloat(min(s.rpm, maxRPM) / maxRPM) * plotH
             return NSPoint(x: x, y: y)
         }
 
         func modeColor(_ mode: FanMode) -> NSColor {
             switch mode {
-            case .charging: return .systemYellow
             case .manual:   return .systemOrange
             case .auto:     return .systemBlue
             }

@@ -11,7 +11,7 @@ final class BatteryBarView: NSView {
     var powerMode: Int = 0           // 0=discharging, 1=charging, 2=full
     var isLowPower: Bool = false     // 节电模式 → 橙色
 
-    static let h: CGFloat = 244   // topPad(20) + rowH(56) + gap(12) + chart(144) + botPad(12)
+    static let h: CGFloat = 244   // topPad(20) + rowH(56) + chart(168)
 
     private let topPadV: CGFloat = 20
     private let rowH:    CGFloat = 56
@@ -26,11 +26,11 @@ final class BatteryBarView: NSView {
 
     override func layout() {
         super.layout()
-        let dataTop = bounds.height - topPadV - rowH
-        let chartH = dataTop - 12
-        chart.frame = NSRect(x: 8, y: 10,
+        let chartGap: CGFloat = 15
+        let chartH = bounds.height - topPadV - rowH - chartGap
+        chart.frame = NSRect(x: 8, y: 0,
                              width: bounds.width - 16,
-                             height: max(chartH - 10, 0))
+                             height: chartH)
     }
 
     func pushSample(watts: Double) {
