@@ -3,13 +3,6 @@
 
 import Cocoa
 
-// MARK: - Fan Mode
-
-enum FanMode {
-    case auto
-    case manual
-}
-
 // MARK: - Fan View (RPM readout + slider + 60s history chart)
 
 final class FanView: NSView {
@@ -67,8 +60,8 @@ final class FanView: NSView {
 
     override func layout() {
         super.layout()
-        slider.frame = NSRect(x: IP - 2, y: sldrY,
-                              width: bounds.width - IP * 2 + 4, height: h_sld)
+        slider.frame = NSRect(x: Layout.IP - 2, y: sldrY,
+                              width: bounds.width - Layout.IP * 2 + 4, height: h_sld)
     }
 
     // MARK: - Data
@@ -105,8 +98,8 @@ final class FanView: NSView {
         NSColor.clear.setFill()
         bounds.fill()
 
-        let cX = IP
-        let cW = bounds.width - IP * 2
+        let cX = Layout.IP
+        let cW = bounds.width - Layout.IP * 2
         let rightEdge = cX + cW
         let accent: NSColor = {
             switch fanMode {

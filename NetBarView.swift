@@ -23,8 +23,8 @@ final class NetBarView: NSView {
         NSColor.clear.setFill()
         bounds.fill()
 
-        let cX = IP
-        let cW = bounds.width - IP * 2
+        let cX = Layout.IP
+        let cW = bounds.width - Layout.IP * 2
 
         // 区段标题（与 MetricBarView 相同坐标逻辑）
         if !sectionTitle.isEmpty {

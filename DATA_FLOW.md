@@ -69,8 +69,7 @@ parseSensors(stdout)
   ▼
 MainActor.run
   │
-  ├─► TempBarView   (CPU/GPU/电池温度, warnAt 60/95°C)
-  └─► updateIconHot(cpu, gpu) → iconModel.hot = max≥80 && data<65s
+  └─► TempBarView   (CPU/GPU/电池温度, warnAt 60/95°C)
 ```
 
 ```
@@ -245,4 +244,4 @@ refresh() → MainActor.run
 | helperVersion | 启动时校验 /usr/local/bin/fanhelper 版本, 不匹配提示重装 |
 | runHelper 5s 超时 | Process 超时自动 kill, 避免卡死 |
 | powerTransitionUntil | 拔电后 25s 缓冲, 避免瞬态功率异常 |
-| lastSensorTime | 传感器数据超过 65s 则 icon hot 降级 |
+| lastSensorTime | 传感器数据时间戳，功耗采样依赖 |

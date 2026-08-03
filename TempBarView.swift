@@ -29,8 +29,8 @@ final class TempBarView: NSView {
         bounds.fill()
         guard !entries.isEmpty else { return }
 
-        let cX        = IP
-        let cW        = bounds.width - IP * 2
+        let cX        = Layout.IP
+        let cW        = bounds.width - Layout.IP * 2
         let rightEdge = cX + cW
         let headH     = TempBarView.headH
         let rowH      = TempBarView.rowH

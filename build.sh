@@ -21,11 +21,15 @@ echo "==> 编译 SMC helper (C)..."
 ARCH=$(uname -m)
 echo "==> 编译 FanSense (Swift, $ARCH) ..."
 "$TOOLCHAIN/swiftc" -sdk "$SDK" -O -target "$ARCH-apple-macosx15.0" -module-cache-path /tmp/swift-modcache-v2 \
+    LayoutConstants.swift \
+    IconView.swift \
     DataSources.swift \
+    FanControlService.swift \
+    PanelController.swift \
+    PowerAlertService.swift \
     TransparentPanel.swift RoundedPanelView.swift HeaderView.swift \
-    SystemBarView.swift NetBarView.swift MetricBarView.swift \
-    TempBarView.swift ChargeChartView.swift EfficiencyView.swift \
-    BatteryBarView.swift FanView.swift \
+    TempBarView.swift MetricBarView.swift NetBarView.swift \
+    ChargeChartView.swift EfficiencyView.swift BatteryBarView.swift FanView.swift \
     main.swift \
     -o FanSense
 

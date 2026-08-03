@@ -41,8 +41,8 @@ final class EfficiencyView: NSView {
 
     override func draw(_ dirty: NSRect) {
         let W = bounds.width
-        let cX = IP
-        let cW = W - IP * 2
+        let cX = Layout.IP
+        let cW = W - Layout.IP * 2
         let color = gradeColor
 
         let leftX    = cX

@@ -42,8 +42,8 @@ final class BatteryBarView: NSView {
         NSColor.clear.setFill()
         bounds.fill()
 
-        let cX = IP
-        let cW = bounds.width - IP * 2
+        let cX = Layout.IP
+        let cW = bounds.width - Layout.IP * 2
         let rightEdge = cX + cW
 
         let contentH = bounds.height - topPadV
