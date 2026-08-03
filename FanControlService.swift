@@ -38,22 +38,6 @@ final class FanControlService {
             helperOK = true
             return
         }
-        guard let bundled = Bundle.main.path(forResource: "fanhelper", ofType: nil) else { return }
-
-        let alert = NSAlert()
-        alert.messageText = installed ? "需要更新风扇控制组件" : "需要安装风扇控制组件"
-        alert.informativeText = "FanSense 通过 fanhelper（安装到 /usr/local/bin）读取传感器并控制风扇转速，安装需要管理员权限，仅需一次。"
-        alert.addButton(withTitle: installed ? "更新" : "安装")
-        alert.addButton(withTitle: "取消")
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-
-        let escapedPath = bundled.replacingOccurrences(of: "\\", with: "\\\\")
-                                  .replacingOccurrences(of: "\"", with: "\\\"")
-        let cmd = "mkdir -p /usr/local/bin && cp \"\(escapedPath)\" \(HELPER) && xattr -c \(HELPER) 2>/dev/null; chown root:wheel \(HELPER) && chmod 4755 \(HELPER)"
-        let script = "do shell script \"\(cmd)\" with administrator privileges"
-        var error: NSDictionary?
-        NSAppleScript(source: script)?.executeAndReturnError(&error)
         checkHelper()
     }
 
