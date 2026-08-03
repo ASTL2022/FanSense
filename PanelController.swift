@@ -12,6 +12,8 @@ final class PanelController {
     private var clickMonitor: Any?
     private var statusButton: NSStatusBarButton?
 
+    var onVisibilityChange: ((Bool) -> Void)?
+
     let headerView     = HeaderView(frame: NSRect(x: 0, y: 0, width: Layout.W, height: HeaderView.h))
     let tempBarView    = TempBarView(frame: NSRect(x: 0, y: 0, width: Layout.W, height: TempBarView.height(count: 3)))
     let batteryBarView = BatteryBarView(frame: NSRect(x: 0, y: 0, width: Layout.W, height: BatteryBarView.h))
@@ -67,6 +69,7 @@ final class PanelController {
         p.makeKeyAndOrderFront(nil)
 
         isVisible = true
+        onVisibilityChange?(true)
 
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self else { return }
@@ -79,6 +82,7 @@ final class PanelController {
     func hide() {
         panel?.orderOut(nil)
         isVisible = false
+        onVisibilityChange?(false)
         if let m = clickMonitor { NSEvent.removeMonitor(m); clickMonitor = nil }
     }
 

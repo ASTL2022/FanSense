@@ -51,6 +51,20 @@ final class AppController: NSObject, NSApplicationDelegate {
         initViewData()
         panelController.setup(statusButton: statusItem.button)
 
+        panelController.onVisibilityChange = { [weak self] visible in
+            guard let self else { return }
+            self.dataTimer?.invalidate()
+            let interval = visible ? 1.0 : 10.0
+            self.dataTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.tickCount += 1
+                    self.refresh(slow: self.tickCount % 30 == 0)
+                    if self.tickCount % 60 == 0 { self.fanService.checkHelper() }
+                }
+            }
+        }
+
         fanService.checkHelper()
         fanService.ensureHelper()
         readSmartOnce()
@@ -170,22 +184,20 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func refresh(slow: Bool = false, force: Bool = false) {
         guard force || !refreshInFlight else { return }
-        let shouldSample = force || panelController.isVisible || tickCount % 10 == 0
-        guard shouldSample else { return }
+        let visible = panelController.isVisible
         refreshInFlight = true
-        let cpuInfo = readCPU(prevTicks: &prevCPUTicks)
-        let netInfo = readNetwork(prevBytes: &prevNetBytes)
+        let cpuInfo = visible ? readCPU(prevTicks: &prevCPUTicks) : CPUInfo()
+        let netInfo = visible ? readNetwork(prevBytes: &prevNetBytes) : NetworkInfo()
 
         Task.detached { [weak self, cpuInfo, netInfo] in
             guard let self else { return }
-            let memInfo = readMemory()
-            let (isOpen, tick, hasHelper) = await MainActor.run(body: {
-                (self.panelController.isVisible, self.tickCount, self.fanService.helperOK)
+            let memInfo = visible ? readMemory() : MemoryInfo()
+            let (isOpen, hasHelper) = await MainActor.run(body: {
+                (self.panelController.isVisible, self.fanService.helperOK)
             })
-            let needFans = hasHelper && (isOpen || tick % 10 == 0)
-            let output  = (isOpen && hasHelper) ? runHelper(["all"]) : (needFans ? runHelper(["read"]) : "")
+            let output  = hasHelper ? runHelper(["all"]) : ""
             let parts   = output.components(separatedBy: "---\n")
-            let fans    = needFans ? parseFans(parts.first ?? "") : []
+            let fans    = hasHelper ? parseFans(parts.first ?? "") : []
             let sensors = (isOpen && hasHelper) ? parseSensors(parts.count > 1 ? parts[1] : "") : SensorData()
             let diskInfo = (isOpen && slow) ? readDisk() : nil
             let bat      = isOpen ? readBatteryPS() : nil
