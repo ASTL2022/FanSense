@@ -58,7 +58,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         panelController.onVisibilityChange = { [weak self] visible in
             guard let self else { return }
             self.dataTimer?.invalidate()
-            let interval = visible ? 1.0 : 30.0
+            let interval = visible ? 1.0 : 120.0
             self.dataTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
                 Task { @MainActor in
                     guard let self else { return }
@@ -75,7 +75,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         readSmartOnce()
         refresh(slow: true, force: true)
 
-        let initialInterval = panelController.isVisible ? 1.0 : 30.0
+        let initialInterval = panelController.isVisible ? 1.0 : 120.0
         dataTimer = Timer.scheduledTimer(withTimeInterval: initialInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
