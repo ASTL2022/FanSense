@@ -11,6 +11,7 @@ final class PanelController {
     private var panel: NSPanel?
     private var clickMonitor: Any?
     private var statusButton: NSStatusBarButton?
+    private var lastStatusClick = Date.distantPast
 
     var onVisibilityChange: ((Bool) -> Void)?
 
@@ -74,6 +75,7 @@ final class PanelController {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self else { return }
             DispatchQueue.main.async {
+                if Date().timeIntervalSince(self.lastStatusClick) < 0.3 { return }
                 self.hide()
             }
         }
@@ -88,6 +90,11 @@ final class PanelController {
 
     func toggle() {
         isVisible ? hide() : show()
+    }
+
+    func statusItemClicked() {
+        lastStatusClick = Date()
+        toggle()
     }
 
     func relayout() {

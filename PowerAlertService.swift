@@ -28,6 +28,7 @@ final class PowerAlertService {
         let t = Timer(fire: Date().addingTimeInterval(3), interval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.sample() }
         }
+        t.tolerance = 5
         RunLoop.main.add(t, forMode: .common)
         bgSampleTimer = t
     }
@@ -35,20 +36,34 @@ final class PowerAlertService {
     func sample() {
         Task.detached { [weak self] in
             guard let self else { return }
-            let sensors = await smcMonitor.readSensors()
+            let battery = readBatteryPS()
+            let sensors: SensorData
+            if battery.hasBattery && !battery.isOnAC {
+                sensors = await smcMonitor.readSensors()
+            } else {
+                sensors = SensorData()
+            }
             await MainActor.run { [weak self] in
                 guard let self else { return }
-                self.lastSensorData = sensors
-                self.lastSensorTime = Date()
+                let wasOnAC = self.lastIsOnAC
+                self.lastBat = battery
+                self.lastIsOnAC = battery.isOnAC
+                if wasOnAC && !battery.isOnAC {
+                    self.powerTransitionUntil = Date().addingTimeInterval(25)
+                }
+                if battery.isOnAC || sensors.pstr > 0 {
+                    self.lastSensorData = sensors
+                    self.lastSensorTime = Date()
+                }
                 let inTransition = self.powerTransitionUntil.map { Date() < $0 } ?? false
-                let w = sensors.pstr > 0 ? sensors.pstr : 0
-                if !inTransition {
+                if !battery.isOnAC && !inTransition {
+                    let w = sensors.pstr > 0 ? sensors.pstr : 0
                     self.powerSamples.append(w)
                     if self.powerSamples.count > 5 { self.powerSamples.removeFirst() }
                 }
                 let avg = self.powerSamples.isEmpty ? 0.0 : self.powerSamples.reduce(0, +) / Double(self.powerSamples.count)
-                let tte = effectiveTimeToEmpty(bat: self.lastBat, sensors: sensors)
-                self.onSampleUpdate?(avg, tte, !self.lastIsOnAC, false)
+                let tte = effectiveTimeToEmpty(bat: battery, sensors: sensors)
+                self.onSampleUpdate?(avg, tte, !battery.isOnAC, false)
                 if !inTransition { self.checkPowerAlert() }
             }
         }

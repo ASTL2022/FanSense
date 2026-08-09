@@ -22,6 +22,10 @@ final class AppController: NSObject, NSApplicationDelegate {
     var smartInfo: SmartInfo?
     var lastIsOnAC: Bool = true
     var lastBat: BatteryInfo?
+    var lastBatteryReadTime: Date?
+    var cachedBattery: BatteryInfo?
+    var lastGPUReadTime: Date?
+    var cachedGPUUtil: Double = -1
 
     var prevCPUTicks: (user: UInt64, sys: UInt64, idle: UInt64) = (0, 0, 0)
     var prevNetBytes: (rx: UInt64, tx: UInt64, time: Double) = (0, 0, 0)
@@ -63,6 +67,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                     if self.tickCount % 60 == 0 { self.fanService.checkHelper() }
                 }
             }
+            self.dataTimer?.tolerance = interval >= 10 ? 5.0 : 0.2
         }
 
         fanService.checkHelper()
@@ -79,6 +84,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 if self.tickCount % 60 == 0 { self.fanService.checkHelper() }
             }
         }
+        dataTimer?.tolerance = initialInterval >= 10 ? 5.0 : 0.2
 
         powerAlertService.startBGTimer()
     }
@@ -109,7 +115,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         if isContextClick {
             showContextMenu()
         } else if event.type == .leftMouseUp, event.clickCount == 1 {
-            panelController.toggle()
+            panelController.statusItemClicked()
             if panelController.isVisible { refresh(slow: true, force: true) }
         }
     }
@@ -181,16 +187,31 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: - Throttled Reads
+
+    func readBatteryThrottled() -> BatteryInfo? {
+        let now = Date()
+        if let t = lastBatteryReadTime, now.timeIntervalSince(t) < 5.0,
+           let cached = cachedBattery {
+            return cached
+        }
+        let b = readBatteryPS()
+        lastBatteryReadTime = now
+        cachedBattery = b
+        return b
+    }
+
     // MARK: - Data Refresh
 
     func refresh(slow: Bool = false, force: Bool = false) {
         guard force || !refreshInFlight else { return }
         let visible = panelController.isVisible
+        let bat = visible ? readBatteryThrottled() : nil
         refreshInFlight = true
         let cpuInfo = visible ? readCPU(prevTicks: &prevCPUTicks) : CPUInfo()
         let netInfo = visible ? readNetwork(prevBytes: &prevNetBytes) : NetworkInfo()
 
-        Task.detached { [weak self, cpuInfo, netInfo] in
+        Task.detached { [weak self, cpuInfo, netInfo, bat] in
             guard let self else { return }
             let memInfo = visible ? readMemory() : MemoryInfo()
             let isOpen = await MainActor.run { self.panelController.isVisible }
@@ -203,7 +224,6 @@ final class AppController: NSObject, NSApplicationDelegate {
                 sensors = SensorData()
             }
             let diskInfo = (isOpen && slow) ? readDisk() : nil
-            let bat      = isOpen ? readBatteryPS() : nil
             let hdr      = (isOpen && slow) ? readSystemHeader() : nil
 
             await MainActor.run { [weak self] in
@@ -253,7 +273,15 @@ final class AppController: NSObject, NSApplicationDelegate {
                     .init(label: "电池", value: sensors.batteryTemp, warnAt: 35, critAt: 45, maxTemp: 60),
                 ]; self.panelController.tempBarView.display()
 
-                let gpuUtil = readGPUUtilization()
+                let now = Date()
+                let gpuUtil: Double
+                if let t = lastGPUReadTime, now.timeIntervalSince(t) < 2.0 {
+                    gpuUtil = cachedGPUUtil
+                } else {
+                    gpuUtil = readGPUUtilization()
+                    lastGPUReadTime = now
+                    cachedGPUUtil = gpuUtil
+                }
                 self.panelController.metricBarView.entries = [
                     .init(label: "CPU", valueStr: String(format: "%.0f%%", cpuInfo.percent * 100), percent: cpuInfo.percent, color: .systemPurple, warnAt: 0.70, critAt: 0.90),
                     .init(label: "GPU", valueStr: gpuUtil >= 0 ? String(format: "%.0f%%", gpuUtil * 100) : "--", percent: gpuUtil, color: .systemGreen, warnAt: 0.70, critAt: 0.90),
