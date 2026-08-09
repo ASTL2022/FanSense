@@ -35,7 +35,7 @@ final class PowerAlertService {
     func sample() {
         Task.detached { [weak self] in
             guard let self else { return }
-            let sensors = parseSensors(runHelper(["sensors"]))
+            let sensors = await smcMonitor.readSensors()
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.lastSensorData = sensors

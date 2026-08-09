@@ -93,7 +93,7 @@ sudo chmod u+s /usr/local/bin/fanhelper
 - 视图：`BatteryBarView`、`ChargeChartView`、`EfficiencyView`、`FanView`、`TempBarView`、`MetricBarView`、`NetBarView`
 
 **C 辅助工具**（`fanhelper.c`、`smc.c`、`nvme_smart.c`）
-- SMC 读写：IOKit
+- SMC 写（set/auto）：IOKit；监控读取已在主程序进程内直读
 - NVMe SMART：`IONVMeSMARTUserClient` 插件接口（仅内置 SSD，无需 root）
 - 命令：`read` / `sensors` / `all` / `smart` / `set <rpm>` / `auto`
 

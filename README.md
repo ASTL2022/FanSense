@@ -96,7 +96,7 @@ sudo chmod u+s /usr/local/bin/fanhelper
 - Views: `BatteryBarView`, `ChargeChartView`, `EfficiencyView`, `FanView`, `TempBarView`, `MetricBarView`, `NetBarView`
 
 **C Helper** (`fanhelper.c`, `smc.c`, `nvme_smart.c`)
-- SMC read/write via IOKit
+- SMC write via IOKit (monitoring reads SMC in-process in the Swift app)
 - NVMe SMART via `IONVMeSMARTUserClient` plug-in (internal SSD only, no root needed)
 - Commands: `read` / `sensors` / `all` / `smart` / `set <rpm>` / `auto`
 
@@ -114,7 +114,7 @@ sudo chmod u+s /usr/local/bin/fanhelper
 
 - **Fast** (1s, panel open): temperature, power, usage, network, fan RPM
 - **Slow** (30s): battery state, disk usage
-- **Panel closed**: fan state sampled every 10s (for the icon), power every 60s; SMART is read once at launch
+- **Panel closed**: fan state sampled every 30s (for the icon), power every 60s; SMART is read once at launch
 
 ### Permission Model
 

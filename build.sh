@@ -2,7 +2,7 @@
 set -e
 cd "$(dirname "$0")"
 
-VERSION="1.2.1"
+VERSION="1.3.0"
 APP="FanSense.app"
 APPBIN="$APP/Contents/MacOS"
 XCODE_DIR=$(xcode-select -p)
@@ -21,6 +21,7 @@ echo "==> 编译 SMC helper (C)..."
 ARCH=$(uname -m)
 echo "==> 编译 FanSense (Swift, $ARCH) ..."
 "$TOOLCHAIN/swiftc" -sdk "$SDK" -O -target "$ARCH-apple-macosx15.0" -module-cache-path /tmp/swift-modcache-v2 \
+    -import-objc-header tools/smc_bridge.h \
     LayoutConstants.swift \
     IconView.swift \
     DataSources.swift \
@@ -31,6 +32,8 @@ echo "==> 编译 FanSense (Swift, $ARCH) ..."
     TempBarView.swift MetricBarView.swift NetBarView.swift \
     ChargeChartView.swift EfficiencyView.swift BatteryBarView.swift FanView.swift \
     main.swift \
+    smc.c \
+    -framework IOKit -framework CoreFoundation \
     -o FanSense
 
 echo "==> 组装 $APP ..."

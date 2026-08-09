@@ -10,6 +10,94 @@ import QuartzCore
 
 let HELPER    = "/usr/local/bin/fanhelper"
 
+// MARK: - 进程内 SMC 监控（只读）
+// 风扇/温度/功耗读取不再 fork fanhelper；只有写转速(set/auto)与 SMART 仍走子进程。
+
+let smcMonitor = SMCMonitor()
+
+actor SMCMonitor {
+    private let cpuKeys = [
+        "Tp09", "Tp01", "Tp05", "Tp0D", "Tp0H",
+        "Tp0V", "Tp0Y", "Tp0b", "Tp0e",
+        "Te05", "Te09", "Te0H", "Te0S", "Te0L", "Te0P",
+    ]
+    private let gpuKeys = [
+        "Tg0D", "Tg05", "Tg0L", "Tg0T", "Tg0f", "Tg0n",
+        "Tf14", "Tf18", "Tf19", "Tf1A", "Tf24", "Tf28", "Tf29", "Tf2A",
+        "Tg0G", "Tg0H", "Tg1U", "Tg1k", "Tg0K", "Tg0d", "Tg0e", "Tg0j", "Tg0k",
+    ]
+    private let battKeys = ["TB0T", "TB1T", "TB2T"]
+
+    func readAll() -> (fans: [FanState], sensors: SensorData) {
+        guard smc_open() == 0 else { return ([FanState](), SensorData()) }
+        defer { smc_close() }
+        return (readFansLocked(), readSensorsLocked())
+    }
+
+    func readFans() -> [FanState] {
+        guard smc_open() == 0 else { return [] }
+        defer { smc_close() }
+        return readFansLocked()
+    }
+
+    func readSensors() -> SensorData {
+        guard smc_open() == 0 else { return SensorData() }
+        defer { smc_close() }
+        return readSensorsLocked()
+    }
+
+    private func readFansLocked() -> [FanState] {
+        let n = smcInt("FNum")
+        guard n > 0 else { return [] }
+        return (0..<n).map { i in
+            var f = FanState()
+            f.cur    = Double(smcFloat("F\(i)Ac"))
+            f.min    = Double(smcFloat("F\(i)Mn"))
+            f.max    = Double(smcFloat("F\(i)Mx"))
+            f.target = Double(smcFloat("F\(i)Tg"))
+            f.mode   = Int(smcInt("F\(i)Md"))
+            return f
+        }
+    }
+
+    private func readSensorsLocked() -> SensorData {
+        var s = SensorData()
+        s.cpuTemp = Double(avgTemps(cpuKeys))
+        s.gpuTemp = Double(avgTemps(gpuKeys))
+        s.batteryTemp = Double(avgTemps(battKeys))
+        s.batteryRemaining = Int(smcInt("B0RM"))
+        s.batteryCapacity = Int(smcInt("B0FC"))
+        s.batteryVoltage = Int(smcInt("B0AV"))
+        let raw = smcInt("B0AC")
+        s.batteryCurrent = Int(Int16(truncatingIfNeeded: raw))
+        s.pstr = Double(smcFloat("PSTR"))
+        s.pdtr = Double(smcFloat("PDTR"))
+        return s
+    }
+
+    private func avgTemps(_ keys: [String]) -> Float {
+        var sum: Float = 0
+        var count = 0
+        for k in keys {
+            let v = smcFloat(k)
+            if v > 0 { sum += v; count += 1 }
+        }
+        return count > 0 ? sum / Float(count) : 0
+    }
+
+    private func smcFloat(_ key: String) -> Float {
+        var v: Float = 0
+        _ = key.withCString { smc_read_float($0, &v) }
+        return v
+    }
+
+    private func smcInt(_ key: String) -> Int32 {
+        var v: Int32 = 0
+        _ = key.withCString { smc_read_int($0, &v) }
+        return v
+    }
+}
+
 // MARK: - Data Models
 
 struct FanState {

@@ -193,13 +193,15 @@ final class AppController: NSObject, NSApplicationDelegate {
         Task.detached { [weak self, cpuInfo, netInfo] in
             guard let self else { return }
             let memInfo = visible ? readMemory() : MemoryInfo()
-            let (isOpen, hasHelper) = await MainActor.run(body: {
-                (self.panelController.isVisible, self.fanService.helperOK)
-            })
-            let output  = hasHelper ? runHelper(isOpen ? ["all"] : ["read"]) : ""
-            let parts   = output.components(separatedBy: "---\n")
-            let fans    = hasHelper ? parseFans(parts.first ?? "") : []
-            let sensors = (isOpen && hasHelper) ? parseSensors(parts.count > 1 ? parts[1] : "") : SensorData()
+            let isOpen = await MainActor.run { self.panelController.isVisible }
+            let fans: [FanState]
+            let sensors: SensorData
+            if isOpen {
+                (fans, sensors) = await smcMonitor.readAll()
+            } else {
+                fans = await smcMonitor.readFans()
+                sensors = SensorData()
+            }
             let diskInfo = (isOpen && slow) ? readDisk() : nil
             let bat      = isOpen ? readBatteryPS() : nil
             let hdr      = (isOpen && slow) ? readSystemHeader() : nil
