@@ -54,7 +54,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         panelController.onVisibilityChange = { [weak self] visible in
             guard let self else { return }
             self.dataTimer?.invalidate()
-            let interval = visible ? 1.0 : 10.0
+            let interval = visible ? 1.0 : 30.0
             self.dataTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
                 Task { @MainActor in
                     guard let self else { return }
@@ -70,7 +70,8 @@ final class AppController: NSObject, NSApplicationDelegate {
         readSmartOnce()
         refresh(slow: true, force: true)
 
-        dataTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        let initialInterval = panelController.isVisible ? 1.0 : 30.0
+        dataTimer = Timer.scheduledTimer(withTimeInterval: initialInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
                 self.tickCount += 1
@@ -195,7 +196,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             let (isOpen, hasHelper) = await MainActor.run(body: {
                 (self.panelController.isVisible, self.fanService.helperOK)
             })
-            let output  = hasHelper ? runHelper(["all"]) : ""
+            let output  = hasHelper ? runHelper(isOpen ? ["all"] : ["read"]) : ""
             let parts   = output.components(separatedBy: "---\n")
             let fans    = hasHelper ? parseFans(parts.first ?? "") : []
             let sensors = (isOpen && hasHelper) ? parseSensors(parts.count > 1 ? parts[1] : "") : SensorData()
@@ -317,7 +318,9 @@ final class AppController: NSObject, NSApplicationDelegate {
     // MARK: - Icon
 
     func updateIconRotation() {
-        withAnimation { iconModel.spinning = fanService.avgRPM >= 100 }
+        let spinning = fanService.avgRPM >= 100
+        guard spinning != iconModel.spinning else { return }
+        withAnimation { iconModel.spinning = spinning }
     }
 }
 
