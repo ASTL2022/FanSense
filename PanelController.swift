@@ -11,7 +11,7 @@ final class PanelController {
     private var panel: NSPanel?
     private var clickMonitor: Any?
     private var statusButton: NSStatusBarButton?
-    private var lastStatusClick = Date.distantPast
+    private var lastHideTime = Date.distantPast
 
     var onVisibilityChange: ((Bool) -> Void)?
 
@@ -75,7 +75,6 @@ final class PanelController {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self else { return }
             DispatchQueue.main.async {
-                if Date().timeIntervalSince(self.lastStatusClick) < 0.3 { return }
                 self.hide()
             }
         }
@@ -84,6 +83,7 @@ final class PanelController {
     func hide() {
         panel?.orderOut(nil)
         isVisible = false
+        lastHideTime = Date()
         onVisibilityChange?(false)
         if let m = clickMonitor { NSEvent.removeMonitor(m); clickMonitor = nil }
     }
@@ -93,8 +93,13 @@ final class PanelController {
     }
 
     func statusItemClicked() {
-        lastStatusClick = Date()
-        toggle()
+        if isVisible {
+            hide()
+            return
+        }
+        // mouse down 已被全局监听关掉时，mouse up 不要把它重新打开
+        if Date().timeIntervalSince(lastHideTime) < 0.3 { return }
+        show()
     }
 
     func relayout() {

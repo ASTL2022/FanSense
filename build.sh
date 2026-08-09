@@ -2,7 +2,7 @@
 set -e
 cd "$(dirname "$0")"
 
-VERSION="1.4.0"
+VERSION="1.4.1"
 APP="FanSense.app"
 APPBIN="$APP/Contents/MacOS"
 XCODE_DIR=$(xcode-select -p)
