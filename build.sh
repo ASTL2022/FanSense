@@ -76,11 +76,14 @@ DMG_TMP="/tmp/fansense-build"
 rm -rf "$DMG_TMP"
 mkdir -p "$DMG_TMP"
 cp -R "$APP" "$DMG_TMP/"
-osascript -e "tell application \"Finder\" to make new alias file at (POSIX file \"$DMG_TMP\") to folder \"Applications\" of startup disk with properties {name:\"Applications\"}" > /dev/null 2>&1
+# Applications 别名(可选, Finder 自动化权限被拒时跳过)
+osascript -e "tell application \"Finder\" to make new alias file at (POSIX file \"$DMG_TMP\") to folder \"Applications\" of startup disk with properties {name:\"Applications\"}" > /dev/null 2>&1 || true
 
 DMG_NAME="FanSense-${VERSION}.dmg"
 rm -f "$DMG_NAME" /tmp/fansense-rw.dmg
-hdiutil create -size 8m -layout NONE -fs "Case-sensitive APFS" -volname FanSense -attach /tmp/fansense-rw.dmg > /dev/null 2>&1
+# 新版 macOS 弃用 hdiutil create，改用 diskutil 创建 + hdiutil attach
+diskutil image create blank /tmp/fansense-rw.dmg --size 8m --fs "Case-sensitive APFS" --volumeName FanSense > /dev/null 2>&1
+hdiutil attach /tmp/fansense-rw.dmg > /dev/null 2>&1
 sleep 1
 ditto "$DMG_TMP/$APP"           "/Volumes/FanSense/$APP"
 ditto "$DMG_TMP/Applications"    "/Volumes/FanSense/Applications"
@@ -100,8 +103,8 @@ tell application "Finder"
     close theWindow
     update disk "FanSense"
 end tell
-' 2>/dev/null
-hdiutil detach /Volumes/FanSense > /dev/null 2>&1
+' 2>/dev/null || true
+hdiutil detach /Volumes/FanSense > /dev/null 2>&1 || true
 sleep 1
 hdiutil convert /tmp/fansense-rw.dmg -format UDZO -o "$DMG_NAME" > /dev/null 2>&1
 rm -f /tmp/fansense-rw.dmg
