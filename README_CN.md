@@ -12,7 +12,7 @@ macOS 菜单栏风扇控制与系统监控工具，支持 Apple Silicon Mac。�
 
 ### 监控
 - **温度**：CPU / GPU / 电池三路温度，阈值变色告警
-- **功耗**：整机功耗（SMC PSTR）+ GPU 功耗（IOReport），60 秒实时曲线
+- **功耗**：整机功耗（SMC PSTR），60 秒实时曲线
 - **电池**：电量、剩余续航、充电状态、能效等级
 - **占用**：CPU / GPU / 内存占用率 + 状态评级
 - **网络**：实时下载/上传速率
@@ -22,7 +22,7 @@ macOS 菜单栏风扇控制与系统监控工具，支持 Apple Silicon Mac。�
 - **自动模式**：系统默认温控
 - **手动模式**：滑块设定转速，拉到最左恢复系统自动温控
 - **历史曲线**：60 秒转速曲线，按模式分色（蓝 = 自动，橙 = 手动）
-- **菜单栏图标**：风扇实际转动时图标旋转；CPU/GPU ≥ 80°C 时变为火焰
+- **菜单栏图标**：风扇实际转动时图标旋转
 
 ### 界面
 - 原生 `NSPanel` 玻璃材质，亮暗模式自适应
@@ -33,11 +33,11 @@ macOS 菜单栏风扇控制与系统监控工具，支持 Apple Silicon Mac。�
 
 ## 系统要求
 
-- **操作系统**：macOS 15+（玻璃面板效果需 macOS 26+）
+- **操作系统**：macOS 15+
 - **处理器**：Apple Silicon
 - **权限**：首次需 root 安装 `fanhelper`（风扇转速写入走 SMC）
 
-> Intel Mac 不支持（SMC 键名和 IOReport 通道不同）。
+> Intel Mac 不支持（SMC 键名与 Apple Silicon 不同）。
 
 ---
 
@@ -98,9 +98,9 @@ sudo chmod u+s /usr/local/bin/fanhelper
 - 命令：`read` / `sensors` / `all` / `smart` / `set <rpm>` / `auto`
 
 **数据源层**（`DataSources.swift`）
-- **功耗**：SMC `PSTR` + IOReport `GPU Energy`
-- **温度**：SMC `TC0x` / `Tg0D` / `TB0T`
-- **CPU 占用**：`host_processor_info` + delta 计算
+- **功耗**：SMC `PSTR`
+- **温度**：SMC 键族（`Tp*`/`Te*` CPU、`Tg*`/`Tf*` GPU、`TB0T` 电池）
+- **CPU 占用**：`host_statistics`（HOST_CPU_LOAD_INFO）+ delta 计算
 - **内存**：`host_statistics64` + `sysctl hw.memsize`
 - **GPU 占用**：IORegistry `AGXAccelerator` → Device Utilization %
 - **网络**：`getifaddrs` + 字节差值 ÷ 时间
@@ -109,9 +109,8 @@ sudo chmod u+s /usr/local/bin/fanhelper
 
 ### 刷新策略
 
-- **快速**（1 秒，面板打开时）：温度、功耗、占用、网络、风扇转速
-- **慢速**（30 秒）：电池状态、磁盘使用量
-- **面板关闭时**：每 30 秒采样风扇状态（用于图标），每 60 秒采样功耗；SMART 启动时读一次
+- **快速**（1 秒，面板打开时）：温度、功耗、占用、网络、风扇转速；电池 5 秒节流、GPU 占用 2 秒节流、磁盘/系统信息每 30 秒
+- **面板关闭时**（120 秒一次）：采样风扇状态（用于图标）；电池/功耗每 60 秒后台采样（仅电池供电时读 SMC）；SMART 启动时读一次
 
 ### 权限模型
 
@@ -137,10 +136,10 @@ sudo chmod u+s /usr/local/bin/fanhelper
 手动转速持续生效，直到滑块拉回最左、退出应用或重启。应用退出时会自动恢复系统温控。
 
 **Intel Mac 能用吗？**  
-不支持。SMC 键名和 IOReport 通道与 Apple Silicon 不同。
+不支持。SMC 键名与 Apple Silicon 不同。
 
-**为什么 CPU 功耗是估算值？**  
-Apple Silicon 的 IOReport `CPU Energy` 通道在当前 macOS 不更新，用 `CPU ≈ 整机 PSTR − GPU` 近似。
+**为什么只显示整机功耗？**  
+Apple Silicon 在当前 macOS 上无法通过 SMC / IOReport 读取可靠的 CPU / GPU 分项功耗，因此 FanSense 只显示整机功耗（SMC `PSTR`）。
 
 **SSD 健康不显示？**  
 SMART 仅支持内置 NVMe 盘，且需要安装最新版 `fanhelper`。

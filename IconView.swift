@@ -8,16 +8,15 @@ final class IconModel: ObservableObject {
     @Published var spinning = false
 }
 
+/// 菜单栏图标：风扇静止时显示风扇图标；电脑风扇开始转（转速≥阈值）时
+/// 切换为温度计图标。纯静态切换，无动画。
 struct StatusIconView: View {
     @ObservedObject var model: IconModel
-    private let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     var body: some View {
-        Image(systemName: reduceMotion ? "fan" : "fan.fill")
+        Image(systemName: model.spinning ? "thermometer.medium" : "fan.fill")
             .font(.system(size: 13, weight: .medium))
-            .symbolEffect(.rotate.byLayer, options: .repeat(.continuous), isActive: model.spinning && !reduceMotion)
             .contentTransition(.opacity)
             .foregroundStyle(.primary)
-            .opacity(reduceMotion && model.spinning ? 0.6 : 1.0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(false)
     }

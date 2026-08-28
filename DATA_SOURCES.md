@@ -2,7 +2,7 @@
 
 > 记录每类监控数据的来源 API、关键字段及已知限制。
 > 新增数据类型时先查本文件，避免重复踩坑。
-> 最后更新：2026-06-28
+> 最后更新：2026-08-09（与 v1.4.1 代码对齐）
 
 ---
 
@@ -31,7 +31,9 @@
 
 ### 1.3 CPU / GPU 分项功耗
 
-> **结论**：GPU 功耗可用 IOReport 读取；CPU 分项功耗在当前 macOS 版本不更新。整机功耗仍用 SMC `PSTR`。
+> **结论**：GPU 功耗可用 IOReport 读取；CPU 分项功耗在当前 macOS 版本不更新。整机功耗用 SMC `PSTR`。
+>
+> **集成状态**：截至 v1.4.1，IOReport GPU 功耗**未集成**到 app——面板只显示整机功耗（`PSTR`）。本文保留实测结论供后续启用。
 
 #### 方案对比（2026-06-28 实测）
 
@@ -82,9 +84,9 @@ for (int i = 0; i < CFArrayGetCount(channels); i++) {
 
 > **CPU 替代方案**：`CPU ≈ PSTR整机 − GPU`（利用 SMC PSTR 减去 IOReport GPU Energy 做近似估算）。
 
-#### 集成到 fanhelper
+#### 集成状态（未实施）
 
-IOReport 调用链路已确定，需要：
+IOReport 调用链路已确定，但截至 v1.4.1 **未集成**（避免常驻订阅带来的额外占用）。后续如需启用：
 1. `fanhelper.c` 新增 `power` / `power_start` / `power_stop` 子命令
 2. 启动时创建 IOReport 订阅，持续在后台采样
 3. Swift 端每秒读一次 delta + 计算瓦数
@@ -118,7 +120,7 @@ IOReport 调用链路已确定，需要：
 |------|------|
 | **API** | IORegistry `AGXAcceleratorG13X` → `PerformanceStatistics` → `Device Utilization %` |
 | **单位** | %（0–100） |
-| **刷新频率** | ~1s |
+| **刷新频率** | ~2s（节流） |
 | **权限** | 无需 root |
 
 ```swift
@@ -137,9 +139,9 @@ let gpuUtil = (ps["Device Utilization %"] as? Int) ?? 0  // 0–100
 
 | 传感器 | SMC 键 | 说明 |
 |--------|--------|------|
-| CPU | `TC0x` 系列（TC0P / TC0D / TC0E 等，机型而异）| 取可用键中最高值或平均值 |
-| GPU | `Tg0D`（Apple Silicon GPU die 温度）| |
-| 电池 | `TB0T`–`TB2T`（Battery Temperature 0–2）| 通常取 TB0T |
+| CPU | `Tp09`/`Tp01`/`Tp05`/`Tp0D`/`Tp0H` 等 P/E 核键（机型而异）| 取可用键平均值（`avgTemps`）|
+| GPU | `Tg0D` 等 `Tg*`/`Tf*` 键（机型而异）| 取可用键平均值 |
+| 电池 | `TB0T`–`TB2T`（Battery Temperature 0–2）| 取可用键平均值 |
 
 **API**：SMC 直接读，`SMCKit` 或原始 `IOServiceOpen`。
 **单位**：°C（SMC 返回 float）。
@@ -151,17 +153,17 @@ let gpuUtil = (ps["Device Utilization %"] as? Int) ?? 0  // 0–100
 
 | 字段 | 说明 |
 |------|------|
-| **API** | Mach `host_processor_info(HOST_PROCESSOR_INFO, ...)` |
-| **方式** | 读取每个核心的 user / system / idle tick，前后两次差值计算占用率 |
-| **刷新频率** | ~1s |
+| **API** | Mach `host_statistics(HOST_CPU_LOAD_INFO, ...)` |
+| **方式** | 读取全系统聚合的 user / system / idle tick，前后两次差值计算占用率（user+sys）|
+| **刷新频率** | ~1s（面板打开时）|
 | **注意** | 需要两次采样做差，第一次无法出结果 |
 
 ```swift
-var cpuInfo: processor_info_array_t?
-var numCpuInfo: mach_msg_type_number_t = 0
-var numCpus: natural_t = 0
-host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO,
-                    &numCpus, &cpuInfo, &numCpuInfo)
+var cpuLoad = host_cpu_load_info()
+var count = mach_msg_type_number_t(
+    MemoryLayout<host_cpu_load_info>.size / MemoryLayout<integer_t>.size)
+host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO,
+                &cpuLoad, &count)
 // 差值计算 (user+system) / (user+system+idle)
 ```
 
@@ -173,7 +175,7 @@ host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO,
 |------|------|
 | **API** | Mach `host_statistics64(mach_host_self(), HOST_VM_INFO64, ...)` |
 | **返回结构** | `vm_statistics64_data_t`：`free_count / active_count / inactive_count / wire_count` |
-| **已用内存** | `(active + inactive + wire) × PAGE_SIZE` |
+| **已用内存** | `(wired + active + compressed) × PAGE_SIZE`（与 Activity Monitor 口径略有差异）|
 | **总内存** | `sysctl hw.memsize` |
 | **刷新频率** | ~1s |
 
@@ -185,7 +187,7 @@ host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO,
 |------|------|
 | **API** | POSIX `getifaddrs` |
 | **方式** | 遍历所有接口，累加 `ifi_ibytes`（下载）/ `ifi_obytes`（上传），前后两次差值 ÷ 间隔 = 速率 |
-| **过滤** | 排除 `lo0` 回环接口，只统计 `AF_LINK` 地址族 |
+| **过滤** | 只统计 `en*` / `utun*` 接口（多接口合计，排除 `lo0`），`AF_LINK` 地址族 |
 | **单位** | B/s（显示时转换为 KB/s 或 MB/s）|
 | **刷新频率** | ~1s |
 
@@ -195,11 +197,11 @@ host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO,
 
 | 字段 | 说明 |
 |------|------|
-| **API** | POSIX `statvfs("/")`（或用户指定路径）|
-| **已用** | `(f_blocks - f_bavail) × f_frsize` |
-| **可用** | `f_bavail × f_frsize` |
-| **总量** | `f_blocks × f_frsize` |
-| **刷新频率** | 低频即可（~5s），变化慢 |
+| **API** | `URL.resourceValues(.volumeAvailableCapacityForImportantUsage)` |
+| **已用** | `total - importantAvailable` |
+| **可用** | `volumeAvailableCapacityForImportantUsage`（与系统设置口径一致）|
+| **总量** | `volumeTotalCapacity` |
+| **刷新频率** | 面板打开时每 30s |
 
 ---
 
@@ -243,8 +245,8 @@ let avgTimeToFull = dict["AvgTimeToFull"] as? Int  // 分钟
 | 字段 | 说明 |
 |------|------|
 | **API** | SMC |
-| **读取键** | `F0Ac`（当前转速），`F0Mn`（最低转速），`F0Mx`（最高转速）|
+| **读取键** | `F0Ac`（当前转速），`F0Mn`（最低转速），`F0Mx`（最高转速），`F0Md`（模式）|
 | **设置键** | `F0Tg`（目标转速，需要 root / SMC 写权限）|
 | **单位** | RPM |
-| **刷新频率** | ~1s |
-| **注意** | 写 SMC 需要 `IOServiceOpen` 并有相应权限，FanSense 通过辅助进程或 helper 实现 |
+| **刷新频率** | 面板开 ~1s；面板关 120s（仍读全量风扇键）|
+| **注意** | 写 SMC 需要 root 权限，FanSense 通过 setuid `fanhelper` 子进程执行 |

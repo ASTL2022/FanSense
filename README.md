@@ -15,7 +15,7 @@ A menu bar fan control and system monitor for Apple Silicon Macs. Shows temperat
 
 ### Monitoring
 - **Temperature**: CPU / GPU / Battery, with color-coded threshold alerts
-- **Power**: whole-system power (SMC PSTR) + GPU power (IOReport), 60-second live chart
+- **Power**: whole-system power (SMC PSTR), 60-second live chart
 - **Battery**: percentage, remaining time, charge state, energy efficiency grade
 - **Usage**: CPU / GPU / memory with status rating
 - **Network**: real-time download/upload speed
@@ -25,7 +25,7 @@ A menu bar fan control and system monitor for Apple Silicon Macs. Shows temperat
 - **Auto mode**: system default thermal management
 - **Manual mode**: set RPM with a slider; drag to minimum to hand control back to the system
 - **History chart**: 60-second RPM curve, colored by mode (blue = auto, orange = manual)
-- **Menu bar icon**: rotates while the fan is actually spinning; switches to a flame when CPU/GPU ≥ 80°C
+- **Menu bar icon**: rotates while the fan is actually spinning
 
 ### UI
 - Native `NSPanel` with glass material, adapts to light/dark mode
@@ -40,7 +40,7 @@ A menu bar fan control and system monitor for Apple Silicon Macs. Shows temperat
 - **Processor**: Apple Silicon
 - **Permissions**: root is required once to install the `fanhelper` binary (fan speed writes go through SMC)
 
-> Intel Macs are not supported — SMC key names and IOReport channels differ.
+> Intel Macs are not supported — SMC key names differ from Apple Silicon.
 
 ---
 
@@ -101,9 +101,9 @@ sudo chmod u+s /usr/local/bin/fanhelper
 - Commands: `read` / `sensors` / `all` / `smart` / `set <rpm>` / `auto`
 
 **Data Layer** (`DataSources.swift`)
-- **Power**: SMC `PSTR` + IOReport GPU Energy
-- **Temperature**: SMC `TC0x` / `Tg0D` / `TB0T`
-- **CPU**: `host_processor_info` with delta calculation
+- **Power**: SMC `PSTR`
+- **Temperature**: SMC key families (`Tp*`/`Te*` CPU, `Tg*`/`Tf*` GPU, `TB0T` battery)
+- **CPU**: `host_statistics` (HOST_CPU_LOAD_INFO) with delta calculation
 - **Memory**: `host_statistics64` + `sysctl hw.memsize`
 - **GPU**: IORegistry `AGXAccelerator` → Device Utilization %
 - **Network**: `getifaddrs` with byte delta ÷ time interval
@@ -112,9 +112,8 @@ sudo chmod u+s /usr/local/bin/fanhelper
 
 ### Refresh Strategy
 
-- **Fast** (1s, panel open): temperature, power, usage, network, fan RPM
-- **Slow** (30s): battery state, disk usage
-- **Panel closed**: fan state sampled every 30s (for the icon), power every 60s; SMART is read once at launch
+- **Fast** (1s, panel open): temperature, power, usage, network, fan RPM; battery throttled to 5s, GPU usage to 2s, disk/header every 30s
+- **Panel closed** (120s tick): fan state sampled every 120s (for the icon), battery/power every 60s in the background (SMC read only while on battery); SMART is read once at launch
 
 ### Permission Model
 
@@ -140,10 +139,10 @@ Fan speed control requires SMC write access, which macOS restricts to root. The 
 It stays at the set RPM until you slide back to minimum, quit the app, or reboot. The app restores auto mode on exit.
 
 **Intel Mac support?**  
-No. SMC key names and IOReport channels differ from Apple Silicon.
+No. SMC key names differ from Apple Silicon.
 
-**Why is CPU power estimated?**  
-Apple Silicon's IOReport `CPU Energy` channel doesn't update on current macOS. FanSense approximates: `CPU ≈ PSTR(total) − GPU`.
+**Why is only whole-system power shown?**  
+Apple Silicon doesn't expose reliable CPU/GPU split power through SMC or IOReport on current macOS, so FanSense shows whole-system power (SMC `PSTR`) only.
 
 **SSD health shows nothing?**  
 SMART is only available for the internal NVMe drive, and requires the current `fanhelper` to be installed.

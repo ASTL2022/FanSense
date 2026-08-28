@@ -1,22 +1,22 @@
 # FanSense 数据流程
 
-> 2026-07-19 · 全代码审查后梳理
+> 2026-08-09 · 与 v1.4.1 实际代码对齐
 
 ---
 
 ## 概览
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    主循环 (1s Tick)                       │
-│  dataTimer ──► refresh() ──► Task.detached ──► UI 更新   │
-│  bgSampleTimer (63s) ──► 功耗采样 + 告警                  │
-└─────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│        主循环 (1s 面板开 / 120s 面板关)                     │
+│  dataTimer ──► refresh() ──► Task.detached ──► UI 更新    │
+│  bgSampleTimer (60s, 偏移3s) ──► 电池/功耗采样 + 告警      │
+└───────────────────────────────────────────────────────────┘
                               │
               ┌───────────────┼───────────────┐
               ▼               ▼               ▼
-         runHelper()      IOKit/Darwin     sysctl/host_stat
-         (fanhelper)      直接读取         直接读取
+         SMC 进程内直读    IOKit/IOPower     sysctl/host_stat
+         (smcMonitor)      直接读取          直接读取
 ```
 
 ---
@@ -24,23 +24,17 @@
 ## 1. SMC 风扇数据流
 
 ```
-dataTimer (1s)
+dataTimer (1s 面板开 / 120s 面板关)
   │
   ▼
 refresh()
-  │ 读取 needFans = hasHelper && (isOpen || tick % 10 == 0)
-  ▼
-Task.detached ──► runHelper(["all"] or ["read"])
-  │                 │
-  │                 ▼
-  │               Process ──► /usr/local/bin/fanhelper
-  │                              │
-  │                              ▼ smc_open() → SMC kernel
-  │                              │ F0Ac/F0Mn/F0Mx/F0Tg/F0Md
-  │                              ▼ stdout: "0 cur=2000 min=1500..."
   │
-  ▼ parseFans(stdout) → [FanState]
-  │   { cur, min, max, target, mode }
+  ▼
+Task.detached ──► smcMonitor（actor，进程内直读 SMC）
+  │                 ├─ 面板开: readAll()  → 风扇键 + 传感器键
+  │                 └─ 面板关: readFans()  → 仅风扇键，温度/功耗键不读
+  ▼
+[FanState] { cur, min, max, target, mode }
   │
   ▼ MainActor.run ──► avgRPM = Σcur / count
   │                   smcManual = any(mode == 1)
@@ -57,15 +51,11 @@ Task.detached ──► runHelper(["all"] or ["read"])
 ## 2. 传感器/温度数据流
 
 ```
-refresh() → runHelper(["all"])
-  │
-  │ stdout 分段: "---\n"
-  │   前半 = 风扇 (→ §1)
-  │   后半 = 传感器
+refresh() → Task.detached → smcMonitor.readAll()
+  │  （仅面板打开时读取；关闭时跳过温度/功耗键）
   ▼
-parseSensors(stdout)
-  │  cpu_temp, gpu_temp, battery_temp, pstr, pdtr
-  │  battery_remaining, battery_capacity, battery_voltage
+SensorData { cpuTemp, gpuTemp, batteryTemp, pstr, pdtr,
+             battery_remaining, battery_capacity, battery_voltage }
   ▼
 MainActor.run
   │
@@ -73,8 +63,8 @@ MainActor.run
 ```
 
 ```
-bgSampleTimer (63s, 偏移避免碰撞)
-  │  runHelper(["sensors"]) → parseSensors()
+bgSampleTimer (60s, 偏移 3s)
+  │  readBatteryPS() +（电池供电时）smcMonitor.readSensors()
   ▼
 MainActor.run
   ├─ lastSensorData = s, lastSensorTime = Date()
@@ -83,21 +73,21 @@ MainActor.run
   └─ checkPowerAlert() → !lastIsOnAC && samples==5 && avg≥15W && tte<3min
 ```
 
-## 3. CPU / 内存 / GPU 数据流 (同步)
+## 3. CPU / 内存 / GPU 数据流
 
 ```
-refresh() ──► MainActor (同步调用, 无 Process)
+refresh()
   │
-  ├─ readCPU(&prevCPUTicks)
+  ├─ readCPU(&prevCPUTicks)        主线程同步（快）
   │    host_statistics64 → cpu_ticks → 差分 → percent (user+sys)
   │    → MetricBarView "CPU"
   │
-  ├─ readMemory()
+  ├─ readMemory()                  Task.detached 后台执行
   │    host_statistics64 + vm_statistics64 → usedGB/percent
   │    sysctlbyname("vm.swapusage") → swapUsedGB
   │    → MetricBarView "内存"
   │
-  └─ readGPUUtilization()  (在 MainActor.run 内调用)
+  └─ readGPUUtilization()          MainActor.run 内调用，2s 节流
        IOServiceMatching("AGXAccelerator*") → PerformanceStatistics
        → MetricBarView "GPU"
 ```
@@ -105,7 +95,7 @@ refresh() ──► MainActor (同步调用, 无 Process)
 ## 4. 网络数据流 (同步)
 
 ```
-refresh() → readNetwork(&prevNetBytes)
+refresh() → readNetwork(&prevNetBytes)  (主线程同步)
   │
   getifaddrs() → 遍历 en*/utun* 接口 → 求和 totalRx/totalTx
   │  (改前: 只取最大单接口, 改后: 多接口合计)
@@ -135,7 +125,8 @@ refresh(slow: true) 每 30s
 ## 6. 电池数据流
 
 ```
-refresh() → readBatteryPS()  (isOpen || isChargingMode)
+refresh() → readBatteryThrottled()  (面板打开时, 5s 节流)
+PowerAlertService → readBatteryPS() （后台每 60s 独立采样）
   │
   ├─ IOPSCopyPowerSourcesInfo → percent, isCharging, isOnAC
   │    timeToEmpty / timeToFull
@@ -144,7 +135,7 @@ refresh() → readBatteryPS()  (isOpen || isChargingMode)
   │    → cycleCount, maxCapacity, designCapacity, healthPercent
   │    → adapterWatts
   │
-  └─ SMC 传感器 (parseSensors)
+  └─ SMC 传感器 (smcMonitor.readAll())
        battery_remaining + battery_current → estimateTimeToEmpty()
        (只在 IOPowerSources timeToEmpty ≤ 0 时作为降级)
   │
@@ -183,13 +174,6 @@ refresh(slow: true) 每 30s
                     │                         ▼ Task.detached
                     │                         runHelper(["set","N"]) ×3 retries
                     │                         (per-attempt gen check)
-                    │
- toggleChargingMode ─┤  (右键菜单)
-                    │  bump gen, fanMode=.charging
-                    ▼  Task.detached
-                       runHelper(["read"]) → max RPM
-                       runHelper(["set","max"]) ×3 retries
-                       (per-attempt gen check)
 ```
 
 ```
@@ -207,11 +191,10 @@ left-click statusItem
         ├─ setFrameOrigin(按钮下方)
         ├─ makeKeyAndOrderFront
         ├─ addGlobalMonitorForEvents (点击面板外 → hidePanel)
-        └─ refresh(slow: true, force: true)
+        └─ refresh(slow: true)
 
 right-click / ctrl+click statusItem
   └─► showContextMenu()
-        ├─ "充电模式" toggle → toggleChargingMode()
         └─ "退出" → quit() → runHelper(["auto"]) → terminate
 
 globalMonitor 触发
@@ -237,7 +220,7 @@ refresh() → MainActor.run
 
 | 机制 | 说明 |
 |------|------|
-| refreshInFlight | 防止并发 refresh 冲刷 SMC (间隔<1s 跳过) |
+| refreshInFlight | 防止并发 refresh 重复采样；force 调用可绕过（风扇写完成/面板打开时立即刷新）|
 | writeInFlight | 标记进行中的 SMC 写, 防 sync 规则误触 |
 | pendingChange | 标记用户拖拽中, 防 SMC 回读覆写 UI |
 | setGeneration | 命令版本号, 超时的旧任务自动中止 |
