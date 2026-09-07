@@ -25,7 +25,7 @@ A menu bar fan control and system monitor for Apple Silicon Macs. Shows temperat
 - **Auto mode**: system default thermal management
 - **Manual mode**: set RPM with a slider; drag to minimum to hand control back to the system
 - **History chart**: 60-second RPM curve, colored by mode (blue = auto, orange = manual)
-- **Menu bar icon**: rotates while the fan is actually spinning
+- **Menu bar icon**: white fan while idle; white thermometer while your manual fan speed is active; red thermometer when the system spins the fan on its own (machine is likely hot)
 
 ### UI
 - Native `NSPanel` with glass material, adapts to light/dark mode

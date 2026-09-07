@@ -248,7 +248,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 if !fans.isEmpty {
                     self.fanService.avgRPM = fans.map(\.cur).reduce(0, +) / Double(fans.count)
                     self.fanService.syncMode(from: fans, pendingChange: self.panelController.fanView.pendingChange)
-                    self.updateIconRotation()
+                    self.updateIconState()
                 }
 
                 guard self.panelController.isVisible else { return }
@@ -347,10 +347,17 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     // MARK: - Icon
 
-    func updateIconRotation() {
-        let spinning = fanService.avgRPM >= 100
-        guard spinning != iconModel.spinning else { return }
-        withAnimation { iconModel.spinning = spinning }
+    /// 三态判据：颜色管"模式"（谁让风扇转的）、字形管"转没转"。
+    /// 模式用应用侧 fanMode（乐观更新），避免手动写入确认窗口内图标闪回红色。
+    func updateIconState() {
+        let state: StatusIconState
+        if fanService.avgRPM < 100 {
+            state = .idle
+        } else {
+            state = fanService.fanMode == .manual ? .manualSpin : .autoSpin
+        }
+        guard state != iconModel.state else { return }
+        withAnimation { iconModel.state = state }
     }
 }
 

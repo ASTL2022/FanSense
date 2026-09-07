@@ -3,20 +3,29 @@
 
 import SwiftUI
 
-@MainActor
-final class IconModel: ObservableObject {
-    @Published var spinning = false
+/// 菜单栏图标三态（颜色管"模式"、字形管"转没转"）：
+/// - `.idle`       — 风扇停转：白色风扇图标
+/// - `.manualSpin` — 手动调速中：白色温度计（转速是用户自己设的，不代表机器热）
+/// - `.autoSpin`   — 系统自动起转：红色温度计（系统判断需要散热，机器通常较热）
+enum StatusIconState {
+    case idle
+    case manualSpin
+    case autoSpin
 }
 
-/// 菜单栏图标：风扇静止时显示风扇图标；电脑风扇开始转（转速≥阈值）时
-/// 切换为温度计图标。纯静态切换，无动画。
+@MainActor
+final class IconModel: ObservableObject {
+    @Published var state: StatusIconState = .idle
+}
+
+/// 纯静态切换，无动画。
 struct StatusIconView: View {
     @ObservedObject var model: IconModel
     var body: some View {
-        Image(systemName: model.spinning ? "thermometer.medium" : "fan.fill")
+        Image(systemName: model.state == .idle ? "fan.fill" : "thermometer.medium")
             .font(.system(size: 13, weight: .medium))
             .contentTransition(.opacity)
-            .foregroundStyle(.primary)
+            .foregroundStyle(model.state == .autoSpin ? Color(nsColor: .systemRed) : Color.primary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(false)
     }

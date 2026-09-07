@@ -45,7 +45,10 @@ Task.detached ──► smcMonitor（actor，进程内直读 SMC）
   │     ├─ RPM 数字 + 模式标签 + 目标RPM
   │     └─ 60s 历史曲线 (Catmull-Rom 样条, 颜色分段)
   │
-  └─► updateIconRotation() → iconModel.spinning = avgRPM >= 100
+  └─► updateIconState()
+        ├─ avgRPM < 100          → .idle      白风扇
+        ├─ fanMode == .manual    → .manualSpin 白温度计（用户手动调速）
+        └─ 否则（系统自动起转）   → .autoSpin   红温度计
 ```
 
 ## 2. 传感器/温度数据流
